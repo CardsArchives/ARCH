@@ -267,6 +267,27 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 .tower-level-info { display:flex; justify-content:space-between; font-size:0.6rem; color:var(--green3); letter-spacing:2px; margin:4px 0; }
 .tower-mult { color:var(--gold); font-weight:bold; }
 
+/* ═══ PERKS SHOP ═══ */
+.perks-tabs { display:flex; gap:6px; margin-bottom:16px; }
+.perks-tab { background:transparent; border:1px solid var(--green4); color:var(--green3); font-family:var(--font); font-size:0.58rem; letter-spacing:2px; padding:6px 14px; cursor:pointer; transition:all 0.2s; }
+.perks-tab.active,.perks-tab:hover { border-color:var(--green); color:var(--green); background:var(--dim); }
+.perks-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.perk-card { border:1px solid var(--green4); padding:12px; background:rgba(0,10,0,0.9); position:relative; transition:all 0.2s; }
+.perk-card:hover { border-color:var(--green3); }
+.perk-card.maxed { border-color:var(--gold); opacity:0.7; }
+.perk-card.owned { border-color:var(--green3); }
+.perk-name { font-size:0.62rem; letter-spacing:2px; color:var(--green); margin-bottom:4px; font-weight:bold; }
+.perk-desc { font-size:0.52rem; color:var(--green3); line-height:1.6; margin-bottom:8px; }
+.perk-level { font-size:0.5rem; color:var(--gold); letter-spacing:1px; margin-bottom:6px; }
+.perk-buy { width:100%; background:transparent; border:1px solid var(--green); color:var(--green); font-family:var(--font); font-size:0.56rem; letter-spacing:2px; padding:5px 0; cursor:pointer; transition:all 0.2s; }
+.perk-buy:hover { background:var(--dim); }
+.perk-buy:disabled { opacity:0.3; cursor:not-allowed; border-color:var(--green4); color:var(--green4); }
+.perk-buy.maxed-btn { border-color:var(--gold); color:var(--gold); cursor:default; }
+.xp-popup { position:fixed; pointer-events:none; font-family:var(--font); font-size:0.7rem; color:var(--gold); text-shadow:0 0 8px var(--gold); z-index:999; animation:xpFloat 1.4s ease-out forwards; letter-spacing:2px; }
+@keyframes xpFloat { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-50px)} }
+.level-up-banner { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,5,0,0.97); border:2px solid var(--gold); color:var(--gold); font-family:var(--font); font-size:1.2rem; letter-spacing:6px; padding:20px 40px; z-index:500; text-align:center; text-shadow:0 0 20px var(--gold); box-shadow:0 0 40px #ffe06644; animation:lvlUpAnim 3s ease forwards; pointer-events:none; }
+@keyframes lvlUpAnim { 0%{opacity:0;transform:translate(-50%,-50%) scale(0.8)} 15%{opacity:1;transform:translate(-50%,-50%) scale(1.05)} 70%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1)} }
+
 /* HISTORY */
 .hist-panel { width: 100%; border: 1px solid var(--green4); background: rgba(0,8,0,0.9); padding: 16px 18px; margin-top: 20px; }
 .hist-title { font-size: 0.55rem; color: var(--green3); letter-spacing: 4px; margin-bottom: 10px; }
@@ -315,23 +336,37 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   <!-- HUB UI -->
   <div id="hubUI">
     <div class="topbar">
-      <span>NODE : <span class="user-tag" id="topUser">&mdash;</span></span>
+      <span>NODE : <span class="user-tag" id="topUser">&mdash;</span> &nbsp;<span id="topTitle" style="color:var(--gold);font-size:0.55rem;letter-spacing:2px;"></span></span>
       <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-xs" style="border-color:var(--gold);color:var(--gold);" onclick="openPerks()">&#9670; PERKS</button>
         <a href="https://arch-production.up.railway.app" class="btn-xs">&#9670; WALLET</a>
         <button class="btn-xs" onclick="doLogout()">DECONNEXION</button>
       </div>
     </div>
 
-    <div class="wallet-bar">
-      <div>
-        <div class="w-label">&#9670; SOLDE ARCH</div>
-        <div><span class="w-balance" id="walletBalance">0.000000</span><span class="w-unit">ARCH</span></div>
+    <div class="wallet-bar" style="flex-direction:column;gap:10px;padding:16px 20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+        <div>
+          <div class="w-label">&#9670; SOLDE ARCH</div>
+          <div><span class="w-balance" id="walletBalance">0.000000</span><span class="w-unit">ARCH</span></div>
+        </div>
+        <div style="text-align:center;">
+          <div class="w-label">NIVEAU</div>
+          <div style="font-size:1.4rem;font-weight:900;color:var(--gold);text-shadow:0 0 10px #ffe06666;" id="walletLevel">1</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="w-label">GAINS &amp; PERTES</div>
+          <div style="font-size:0.72rem;color:var(--green3)" id="walletWins">+0.000000 ARCH</div>
+          <div style="font-size:0.72rem;color:var(--red)" id="walletLosses">-0.000000 ARCH</div>
+        </div>
       </div>
-      <div style="text-align:right;">
-        <div class="w-label">GAINS TOTAUX</div>
-        <div style="font-size:0.78rem;color:var(--green3)" id="walletWins">+0.000000 ARCH</div>
-        <div class="w-label" style="margin-top:6px;">PERTES TOTALES</div>
-        <div style="font-size:0.78rem;color:var(--red)" id="walletLosses">-0.000000 ARCH</div>
+      <div style="width:100%;">
+        <div style="display:flex;justify-content:space-between;font-size:0.5rem;color:var(--green3);letter-spacing:2px;margin-bottom:4px;">
+          <span>XP</span><span id="walletXpText">0 / 100</span>
+        </div>
+        <div style="background:#001a00;border:1px solid var(--green4);height:7px;width:100%;position:relative;overflow:hidden;">
+          <div id="walletXpBar" style="height:100%;background:linear-gradient(90deg,var(--green3),var(--green));width:0%;transition:width 0.6s ease;box-shadow:0 0 8px var(--green);"></div>
+        </div>
       </div>
     </div>
 
@@ -733,6 +768,43 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   </div>
 </div>
 
+<!-- MODAL PERKS -->
+<div class="modal-overlay" id="modalPerks">
+  <div class="modal" style="width:min(580px,98vw);padding:24px 20px;">
+    <button class="modal-close" onclick="closeModal('modalPerks')">&#10005;</button>
+    <div class="modal-title">&#9670; PERK SHOP</div>
+    <div class="modal-sub">AMELIORE TON COMPTE &mdash; ACHETE AVEC DE L'ARCH</div>
+    <hr class="modal-hr">
+    <!-- Player level recap -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div>
+        <div style="font-size:0.5rem;color:var(--green3);letter-spacing:3px;">NIVEAU</div>
+        <div style="font-size:1.6rem;font-weight:900;color:var(--gold);text-shadow:0 0 12px #ffe06666;" id="perksLevel">1</div>
+      </div>
+      <div style="flex:1;margin:0 16px;">
+        <div style="display:flex;justify-content:space-between;font-size:0.48rem;color:var(--green3);letter-spacing:2px;margin-bottom:3px;">
+          <span>XP</span><span id="perksXpText">0 / 100</span>
+        </div>
+        <div style="background:#001a00;border:1px solid var(--green4);height:6px;overflow:hidden;">
+          <div id="perksXpBar" style="height:100%;background:linear-gradient(90deg,var(--green3),var(--green));width:0%;transition:width 0.4s;"></div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:0.5rem;color:var(--green3);letter-spacing:3px;">SOLDE</div>
+        <div style="font-size:0.9rem;color:var(--green);font-weight:bold;" id="perksBalance">0 ARCH</div>
+      </div>
+    </div>
+    <!-- Category tabs -->
+    <div class="perks-tabs">
+      <button class="perks-tab active" onclick="perksSetTab('mining',this)">&#9670; MINING</button>
+      <button class="perks-tab" onclick="perksSetTab('games',this)">&#9670; JEUX</button>
+      <button class="perks-tab" onclick="perksSetTab('cosmetic',this)">&#9670; COSMETIQUE</button>
+    </div>
+    <div class="err-msg" id="perksErr"></div>
+    <div class="perks-grid" id="perksGrid"></div>
+  </div>
+</div>
+
 <!-- MODAL KENO -->
 <div class="modal-overlay" id="modalKeno">
   <div class="modal" style="width:min(520px,98vw)">
@@ -848,6 +920,77 @@ const ARCH_API = 'https://arch-production.up.railway.app';
 let token    = localStorage.getItem('hub_token') || '';
 let username = localStorage.getItem('hub_user')  || '';
 let balance  = 0, totalWins = 0, totalLosses = 0;
+let playerLevel = 1, playerXp = 0, playerXpForNext = 100, playerPerks = {};
+
+function updateXpDisplay(xp, level, xpInLevel, xpForNext) {
+  playerXp = xp; playerLevel = level;
+  const pct = Math.min(100, Math.round(xpInLevel / xpForNext * 100));
+  document.getElementById('walletLevel').textContent = level;
+  document.getElementById('walletXpText').textContent = xpInLevel + ' / ' + xpForNext + ' XP';
+  document.getElementById('walletXpBar').style.width = pct + '%';
+}
+
+function showXpPopup(xp, x, y) {
+  if (!xp || xp <= 0) return;
+  const el = document.createElement('div');
+  el.className = 'xp-popup';
+  el.textContent = '+' + xp + ' XP';
+  el.style.left = (x || window.innerWidth / 2) + 'px';
+  el.style.top = (y || 200) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+function showLevelUp(level) {
+  const el = document.createElement('div');
+  el.className = 'level-up-banner';
+  el.innerHTML = '&#9670; NIVEAU ' + level + ' &#9670;<div style="font-size:0.6rem;letter-spacing:4px;margin-top:8px;color:var(--green);">LEVEL UP !</div>';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+async function refreshBalance(){
+  const d = await archFetch('/api/me');
+  if (!d.username) { doLogout(); return; }
+  const prevLevel = playerLevel;
+  balance = d.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+  if (d.level !== undefined) {
+    updateXpDisplay(d.xp, d.level, d.xp_in_level, d.xp_for_next);
+    playerPerks = d.perks || {};
+    // Show title
+    const titles = Object.values(playerPerks).length ? null : null; // handled below
+    const titlePerk = ['title_whale','title_ghost','title_hunter'].find(t => playerPerks[t]);
+    const titleMap = { title_whale:'[WHALE]', title_ghost:'[GHOST]', title_hunter:'[HUNTER]' };
+    const titleEl = document.getElementById('topTitle');
+    if (titleEl) titleEl.textContent = titlePerk ? titleMap[titlePerk] : '';
+  }
+}
+
+function handleXpGain(xpGained, cashback) {
+  if (xpGained > 0) {
+    const prevLevel = playerLevel;
+    playerXp += xpGained;
+    // Rough client-side level check (server is authoritative, this is just for animation)
+    showXpPopup(xpGained, window.innerWidth / 2 + (Math.random()-0.5)*100, 160);
+    // Refresh to get accurate level
+    setTimeout(refreshBalance, 800);
+  }
+  if (cashback > 0) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'xp-popup';
+      el.style.color = '#00ffaa';
+      el.style.textShadow = '0 0 8px #00ffaa';
+      el.textContent = '+' + cashback.toFixed(6) + ' CASHBACK';
+      el.style.left = (window.innerWidth / 2 - 60) + 'px';
+      el.style.top = '180px';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1800);
+    }, 400);
+  }
+}
+
 
 // MATRIX
 (function(){
@@ -861,7 +1004,10 @@ let balance  = 0, totalWins = 0, totalLosses = 0;
 
 async function archFetch(path,opts={}){
   const res=await fetch(ARCH_API+path,{...opts,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(opts.headers||{})}});
-  return res.json();
+  const data = await res.json();
+  // Auto-handle XP and cashback from any game response
+  if (data.xp_gained || data.cashback) handleXpGain(data.xp_gained || 0, data.cashback || 0);
+  return data;
 }
 
 async function doLogin(){
@@ -1829,7 +1975,80 @@ function plinkoSetMax() {
   if (balance > 0) document.getElementById('plinkoStake').value = (balance / ballCount).toFixed(6);
 }
 
-// ════ KENO ════
+// ════ PERKS SHOP ════
+let perksCurrentTab = 'mining';
+let perksCatalog = [];
+
+async function openPerks() {
+  document.getElementById('modalPerks').classList.add('open');
+  await loadPerks();
+}
+
+async function loadPerks() {
+  const errEl = document.getElementById('perksErr');
+  errEl.textContent = '';
+  const d = await archFetch('/api/perks');
+  if (!d.ok) { errEl.textContent = d.error || 'Erreur.'; return; }
+  perksCatalog = d.catalog;
+  document.getElementById('perksLevel').textContent = d.level;
+  document.getElementById('perksBalance').textContent = d.balance.toFixed(6) + ' ARCH';
+  const xpInLevel = d.xp - getTotalXpForLevel(d.level);
+  const xpForNext = Math.floor(100 * Math.pow(d.level, 1.6));
+  const pct = Math.min(100, Math.round(xpInLevel / xpForNext * 100));
+  document.getElementById('perksXpText').textContent = xpInLevel + ' / ' + xpForNext + ' XP';
+  document.getElementById('perksXpBar').style.width = pct + '%';
+  renderPerksGrid(perksCurrentTab);
+}
+
+function getTotalXpForLevel(lvl) {
+  let acc = 0;
+  for (let i = 1; i < lvl; i++) acc += Math.floor(100 * Math.pow(i, 1.6));
+  return acc;
+}
+
+function perksSetTab(tab, el) {
+  perksCurrentTab = tab;
+  document.querySelectorAll('.perks-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderPerksGrid(tab);
+}
+
+function renderPerksGrid(tab) {
+  const grid = document.getElementById('perksGrid');
+  const filtered = perksCatalog.filter(p => p.cat === tab);
+  grid.innerHTML = filtered.map(p => {
+    const lvlStars = '◆'.repeat(p.currentLevel) + '◇'.repeat(p.maxLvl - p.currentLevel);
+    const isCosmetic = p.cat === 'cosmetic';
+    return `<div class="perk-card ${p.maxed ? 'maxed' : p.currentLevel > 0 ? 'owned' : ''}">
+      <div class="perk-name">${p.name}</div>
+      <div class="perk-level">${lvlStars} &nbsp;NV.${p.currentLevel}/${p.maxLvl}</div>
+      <div class="perk-desc">${p.desc}</div>
+      ${p.maxed
+        ? `<button class="perk-buy maxed-btn" disabled>MAX ATTEINT</button>`
+        : `<button class="perk-buy" onclick="buyPerk('${p.id}')">
+            ${p.currentLevel > 0 ? 'AMELIORER' : 'ACHETER'} &mdash; ${p.nextCost} ARCH
+           </button>`
+      }
+    </div>`;
+  }).join('');
+}
+
+async function buyPerk(perkId) {
+  const errEl = document.getElementById('perksErr');
+  errEl.textContent = '';
+  const d = await archFetch('/api/perks/buy', { method: 'POST', body: JSON.stringify({ perk_id: perkId }) });
+  if (!d.ok) { errEl.textContent = d.error || 'Erreur.'; return; }
+  balance = d.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+  // Flash success
+  errEl.style.color = 'var(--green)';
+  errEl.textContent = '✓ PERK ACTIVÉ — NV.' + d.newLevel;
+  setTimeout(() => { errEl.textContent = ''; errEl.style.color = ''; }, 2000);
+  await loadPerks();
+  refreshBalance();
+}
+
+
 let kenoPicked=new Set();
 const KENO_MAX_MULTS={1:3.8,2:9,3:27,4:55,5:120,6:300,7:750,8:2000,9:5000,10:10000};
 

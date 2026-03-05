@@ -35,6 +35,86 @@ async function query(sql, params = []) {
   finally { client.release(); }
 }
 
+// ============================================================
+//  XP & LEVELS
+// ============================================================
+function xpForLevel(lvl) { return Math.floor(100 * Math.pow(lvl, 1.6)); }
+function levelFromXp(totalXp) {
+  let lvl = 1, acc = 0;
+  while (lvl < 100) {
+    const need = xpForLevel(lvl);
+    if (acc + need > totalXp) break;
+    acc += need; lvl++;
+  }
+  const need = xpForLevel(lvl);
+  return { level: lvl, xpInLevel: totalXp - acc, xpForNext: need };
+}
+const XP_TABLE = {
+  scan:5, claim:12, expire_auto:3,
+  coinflip_win:6, coinflip_lose:3,
+  dice_win:6, dice_lose:3,
+  slots_win:8, slots_lose:4, slots_bonus:15,
+  bj_win:10, bj_lose:5, bj_bust:4,
+  mines_cashout:10, mines_lose:4,
+  crash_win:8, crash_lose:4,
+  plinko_win:7, plinko_lose:3,
+  roulette_win:8, roulette_lose:4,
+  keno_win:8, keno_lose:4,
+  poker_win:10, poker_lose:5,
+  scratch_win:6, scratch_lose:3,
+  tower_cashout:10, tower_lose:4,
+};
+async function addXp(username, action) {
+  const base = XP_TABLE[action] || 3;
+  const perkRow = await query("SELECT level FROM player_perks WHERE username=$1 AND perk_id='xp_boost'", [username]).catch(()=>({rows:[]}));
+  const mult = perkRow.rows.length ? 1 + perkRow.rows[0].level * 0.5 : 1;
+  const xp = Math.round(base * mult);
+  await query('UPDATE users SET xp = xp + $1 WHERE username = $2', [xp, username]);
+  return xp;
+}
+
+// ============================================================
+//  PERKS CATALOG
+// ============================================================
+const PERKS = {
+  scan_speed:   { id:'scan_speed',   name:'SCAN TURBO',    cat:'mining',   maxLvl:5, desc:'Cooldown scan -4s/lvl',            baseCost:0.5,  mult:2.2 },
+  mining_boost: { id:'mining_boost', name:'MINING BOOST',  cat:'mining',   maxLvl:5, desc:'Reward scan +15%/lvl',             baseCost:1.0,  mult:2.5 },
+  double_claim: { id:'double_claim', name:'DOUBLE CLAIM',  cat:'mining',   maxLvl:3, desc:'10% chance doubler claim/lvl',     baseCost:2.0,  mult:3.0 },
+  xp_boost:     { id:'xp_boost',     name:'XP BOOST',      cat:'games',    maxLvl:3, desc:'+50% XP par partie/lvl',           baseCost:0.8,  mult:2.0 },
+  cashback:     { id:'cashback',      name:'CASHBACK',      cat:'games',    maxLvl:4, desc:'2% remboursé sur les pertes/lvl',  baseCost:1.5,  mult:2.8 },
+  lucky_spin:   { id:'lucky_spin',   name:'LUCKY SPIN',    cat:'games',    maxLvl:3, desc:'+5% sur tous les multiplicateurs', baseCost:3.0,  mult:3.5 },
+  plinko_edge:  { id:'plinko_edge',  name:'PLINKO EDGE',   cat:'games',    maxLvl:3, desc:'House edge Plinko -1%/lvl',        baseCost:2.0,  mult:3.0 },
+  tower_shield: { id:'tower_shield', name:'TOWER SHIELD',  cat:'games',    maxLvl:2, desc:'1 vie bonus en Tower/lvl',         baseCost:4.0,  mult:4.0 },
+  title_hunter: { id:'title_hunter', name:'[HUNTER]',      cat:'cosmetic', maxLvl:1, desc:'Badge exclusif sur ton profil',    baseCost:0.3,  mult:1   },
+  title_whale:  { id:'title_whale',  name:'[WHALE]',       cat:'cosmetic', maxLvl:1, desc:'Badge pour les grosses mises',     baseCost:5.0,  mult:1   },
+  title_ghost:  { id:'title_ghost',  name:'[GHOST]',       cat:'cosmetic', maxLvl:1, desc:'Badge mystère',                    baseCost:2.0,  mult:1   },
+};
+function perkCost(id, curLvl) {
+  const p = PERKS[id]; if (!p) return null;
+  return parseFloat((p.baseCost * Math.pow(p.mult, curLvl)).toFixed(6));
+}
+async function getUserPerks(username) {
+  const r = await query('SELECT perk_id, level FROM player_perks WHERE username=$1', [username]).catch(()=>({rows:[]}));
+  const map = {}; r.rows.forEach(row => { map[row.perk_id] = row.level; }); return map;
+}
+
+// Apply cashback perk on a loss, returns extra ARCH credited
+async function applyCashback(username, lostAmt, perks) {
+  if (!perks['cashback'] || lostAmt <= 0) return 0;
+  const cb = parseFloat((lostAmt * perks['cashback'] * 0.02).toFixed(6));
+  if (cb > 0) {
+    await query('UPDATE users SET balance = balance + $1 WHERE username = $2', [cb, username]);
+    await addHistory(username, cb, 'cashback');
+  }
+  return cb;
+}
+
+// Apply lucky_spin mult boost (returns multiplied value)
+function applyLuckyMult(mult, perks) {
+  if (!perks['lucky_spin'] || mult <= 0) return mult;
+  return parseFloat((mult * (1 + perks['lucky_spin'] * 0.05)).toFixed(4));
+}
+
 async function initDB() {
   await query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -45,7 +125,18 @@ async function initDB() {
       scans         INTEGER DEFAULT 0,
       claims        INTEGER DEFAULT 0,
       last_scan     BIGINT DEFAULT 0,
+      xp            INTEGER DEFAULT 0,
       created_at    TEXT DEFAULT now()::text
+    )
+  `);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0`).catch(()=>{});
+  await query(`
+    CREATE TABLE IF NOT EXISTS player_perks (
+      username  TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      perk_id   TEXT NOT NULL,
+      level     INTEGER DEFAULT 1,
+      bought_at TEXT DEFAULT now()::text,
+      PRIMARY KEY (username, perk_id)
     )
   `);
   await query(`
@@ -196,8 +287,9 @@ async function api(req, res) {
       'INSERT INTO pending_claims (username, reward, expires_at) VALUES ($1, $2, $3) ON CONFLICT (username) DO UPDATE SET reward = $2, expires_at = $3',
       [user.username, reward, expiresAt]
     );
-    console.log(`[SCAN] ${user.username} → ${reward} ARCH`);
-    return json(res, 200, { ok: true, reward, scan_duration: CONFIG.scanDuration, claim_window: CONFIG.claimWindow });
+    const xpGained = await addXp(user.username, 'scan');
+    console.log(`[SCAN] ${user.username} → ${reward} ARCH +${xpGained}xp`);
+    return json(res, 200, { ok: true, reward, scan_duration: CONFIG.scanDuration, claim_window: CONFIG.claimWindow, xp_gained: xpGained });
   }
 
   // CLAIM
@@ -211,12 +303,19 @@ async function api(req, res) {
       await query('DELETE FROM pending_claims WHERE username = $1', [user.username]);
       return json(res, 400, { error: 'Trop tard — reward expirée.' });
     }
-    await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1, claims = claims + 1 WHERE username = $2', [claim.reward, user.username]);
-    await addHistory(user.username, claim.reward, 'claim');
+    const perks = await getUserPerks(user.username);
+    let finalReward = claim.reward;
+    // mining_boost perk
+    if (perks['mining_boost']) finalReward = parseFloat((finalReward * (1 + perks['mining_boost'] * 0.15)).toFixed(6));
+    // double_claim perk
+    if (perks['double_claim'] && Math.random() < perks['double_claim'] * 0.10) finalReward = parseFloat((finalReward * 2).toFixed(6));
+    await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1, claims = claims + 1 WHERE username = $2', [finalReward, user.username]);
+    await addHistory(user.username, finalReward, 'claim');
     await query('DELETE FROM pending_claims WHERE username = $1', [user.username]);
+    const xpGained = await addXp(user.username, 'claim');
     const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[CLAIM] ${user.username} → +${claim.reward} ARCH`);
-    return json(res, 200, { ok: true, reward: claim.reward, balance: updated.rows[0].balance });
+    console.log(`[CLAIM] ${user.username} → +${finalReward} ARCH +${xpGained}xp`);
+    return json(res, 200, { ok: true, reward: finalReward, balance: updated.rows[0].balance, xp_gained: xpGained });
   }
 
   // EXPIRE
@@ -240,14 +339,24 @@ async function api(req, res) {
     if (!user) return json(res, 401, { error: 'Non connecté.' });
     const claim = await query('SELECT * FROM pending_claims WHERE username = $1', [user.username]);
     const hist  = await query('SELECT amount, reason, auto, created_at FROM history WHERE username = $1 ORDER BY id DESC LIMIT 20', [user.username]);
+    const perks = await getUserPerks(user.username);
+    const lvlData = levelFromXp(user.xp || 0);
+    // Compute effective scan interval with scan_speed perk
+    const scanReduction = perks['scan_speed'] ? perks['scan_speed'] * 4 : 0;
+    const effectiveScanInterval = Math.max(8, CONFIG.scanInterval - scanReduction);
     return json(res, 200, {
       username:      user.username,
       balance:       user.balance,
       total_earned:  user.total_earned,
       scans:         user.scans,
       claims:        user.claims,
+      xp:            user.xp || 0,
+      level:         lvlData.level,
+      xp_in_level:   lvlData.xpInLevel,
+      xp_for_next:   lvlData.xpForNext,
+      perks,
       history:       hist.rows.map(h => ({ amount: h.amount, at: h.created_at, auto: h.auto, reason: h.reason })),
-      next_scan_in:  Math.max(0, Math.ceil(CONFIG.scanInterval - (Date.now() - Number(user.last_scan)) / 1000)),
+      next_scan_in:  Math.max(0, Math.ceil(effectiveScanInterval - (Date.now() - Number(user.last_scan)) / 1000)),
       pending_claim: claim.rows.length ? { reward: claim.rows[0].reward, expires_at: Number(claim.rows[0].expires_at) } : null,
     });
   }
@@ -309,9 +418,12 @@ async function api(req, res) {
       await addHistory(user.username, -amt, 'coinflip_lose');
     }
 
-    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[COINFLIP] ${user.username} → ${choice} vs ${result} — ${won ? '+' + amt.toFixed(6) : '-' + amt.toFixed(6)} ARCH`);
-    return json(res, 200, { ok: true, result, won, balance: updated.rows[0].balance });
+    const perksC = await getUserPerks(user.username);
+    let cbC = 0; if (!won) cbC = await applyCashback(user.username, amt, perksC);
+    const xpC = await addXp(user.username, won ? 'coinflip_win' : 'coinflip_lose');
+    const updatedC = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[COINFLIP] ${user.username} → ${choice} vs ${result} — ${won ? '+' + amt.toFixed(6) : '-' + amt.toFixed(6)} ARCH +${xpC}xp`);
+    return json(res, 200, { ok: true, result, won, balance: updatedC.rows[0].balance, xp_gained: xpC, cashback: cbC });
   }
 
   // GAME — DICE (résultat serveur)
@@ -337,9 +449,12 @@ async function api(req, res) {
       await addHistory(user.username, -amt, 'dice_lose');
     }
 
-    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[DICE] ${user.username} → ${choiceNum} vs ${rolled} — ${won ? '+' + (amt * 4).toFixed(6) : '-' + amt.toFixed(6)} ARCH`);
-    return json(res, 200, { ok: true, rolled, won, balance: updated.rows[0].balance });
+    const perksD = await getUserPerks(user.username);
+    let cbD = 0; if (!won) cbD = await applyCashback(user.username, amt, perksD);
+    const xpD = await addXp(user.username, won ? 'dice_win' : 'dice_lose');
+    const updatedD = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[DICE] ${user.username} → ${choiceNum} vs ${rolled} +${xpD}xp`);
+    return json(res, 200, { ok: true, rolled, won, balance: updatedD.rows[0].balance, xp_gained: xpD, cashback: cbD });
   }
 
   // GAME — SLOTS (résultat serveur)
@@ -443,14 +558,12 @@ async function api(req, res) {
     }
     if (netDelta !== 0) await addHistory(user.username, netDelta, netDelta > 0 ? 'slots_win' : 'slots_lose');
 
+    const perksS = await getUserPerks(user.username);
+    let cbS = 0; if (netDelta < 0) cbS = await applyCashback(user.username, Math.abs(netDelta), perksS);
+    const xpS = await addXp(user.username, bonusTriggered ? 'slots_bonus' : netDelta > 0 ? 'slots_win' : 'slots_lose');
     const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[SLOTS5x3] ${user.username} mult:${totalMult} lines:${winLines.length} bonus:${bonusReward}`);
-    return json(res, 200, {
-      ok: true, grid,
-      winLines, totalMult, netDelta,
-      bonusTriggered, bonusReward,
-      balance: updated.rows[0].balance
-    });
+    console.log(`[SLOTS5x3] ${user.username} mult:${totalMult} lines:${winLines.length} bonus:${bonusReward} +${xpS}xp`);
+    return json(res, 200, { ok: true, grid, winLines, totalMult, netDelta, bonusTriggered, bonusReward, balance: updated.rows[0].balance, xp_gained: xpS, cashback: cbS });
   }
 
   // GAME — SLOTS BONUS WHEEL (roue ARCH)
@@ -576,16 +689,21 @@ async function api(req, res) {
       const gain = parseFloat((amt * mult).toFixed(6));
       await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
       await addHistory(user.username, gain - amt, 'mines_cashout');
+      const perksMc = await getUserPerks(user.username);
+      const xpMc = await addXp(user.username, 'mines_cashout');
       const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-      console.log(`[MINES] ${user.username} cashout safe:${safe} mult:${mult} +${gain}`);
-      return json(res, 200, { ok: true, gain, mult, balance: updated.rows[0].balance });
+      console.log(`[MINES] ${user.username} cashout safe:${safe} mult:${mult} +${gain} +${xpMc}xp`);
+      return json(res, 200, { ok: true, gain, mult, balance: updated.rows[0].balance, xp_gained: xpMc });
     }
 
     if (action === 'lose') {
       const amt = parseFloat(parseFloat(amount).toFixed(6));
       await addHistory(user.username, -amt, 'mines_lose');
+      const perksMl = await getUserPerks(user.username);
+      const cbMl = await applyCashback(user.username, amt, perksMl);
+      const xpMl = await addXp(user.username, 'mines_lose');
       const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-      return json(res, 200, { ok: true, balance: updated.rows[0].balance });
+      return json(res, 200, { ok: true, balance: updated.rows[0].balance, xp_gained: xpMl, cashback: cbMl });
     }
 
     return json(res, 400, { error: 'Action inconnue.' });
@@ -622,9 +740,12 @@ async function api(req, res) {
         await addHistory(user.username, -amt, 'crash_lose');
       }
 
+      const perksCr = await getUserPerks(user.username);
+      let cbCr = 0; if (!won) cbCr = await applyCashback(user.username, amt, perksCr);
+      const xpCr = await addXp(user.username, won ? 'crash_win' : 'crash_lose');
       const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-      console.log(`[CRASH] ${user.username} target:${target}x crash:${crashAt}x ${won?'WIN':'LOSE'}`);
-      return json(res, 200, { ok: true, crashAt, won, gain, balance: updated.rows[0].balance });
+      console.log(`[CRASH] ${user.username} target:${target}x crash:${crashAt}x ${won?'WIN':'LOSE'} +${xpCr}xp`);
+      return json(res, 200, { ok: true, crashAt, won, gain, balance: updated.rows[0].balance, xp_gained: xpCr, cashback: cbCr });
     }
 
     return json(res, 400, { error: 'Action inconnue.' });
@@ -662,9 +783,12 @@ async function api(req, res) {
     } else {
       await addHistory(user.username, -amt, 'roulette_lose');
     }
-    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[ROULETTE] ${user.username} spin:${spin} bet:${betType}/${betValue} mult:${mult}`);
-    return json(res, 200, { ok: true, spin, isRed, mult, gain, balance: updated.rows[0].balance });
+    const perksR = await getUserPerks(user.username);
+    let cbR = 0; if (mult === 0) cbR = await applyCashback(user.username, amt, perksR);
+    const xpR = await addXp(user.username, mult > 0 ? 'roulette_win' : 'roulette_lose');
+    const updatedR = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[ROULETTE] ${user.username} spin:${spin} bet:${betType}/${betValue} mult:${mult} +${xpR}xp`);
+    return json(res, 200, { ok: true, spin, isRed, mult, gain, balance: updatedR.rows[0].balance, xp_gained: xpR, cashback: cbR });
   }
 
   // GAME — PLINKO
@@ -676,30 +800,25 @@ async function api(req, res) {
     const r = Math.min(Math.max(parseInt(rows) || 8, 8), 16);
     if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
     if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
-    // Simulate path
     let pos = 0;
     const path = [];
-    for (let i = 0; i < r; i++) {
-      const dir = Math.random() < 0.5 ? 0 : 1;
-      path.push(dir);
-      pos += dir;
-    }
-    // Multipliers for each slot (bell curve, house edge ~3%)
-    const multipliers8  = [10, 3, 1.4, 0.4, 0.2, 0.4, 1.4, 3, 10];           // 9 slots
-    const multipliers12 = [20, 6, 2.5, 1.1, 0.5, 0.2, 0.2, 0.2, 0.5, 1.1, 2.5, 6, 20];  // 13 slots
-    const multipliers16 = [60, 18, 7, 2.5, 1.2, 0.5, 0.3, 0.2, 0.2, 0.2, 0.3, 0.5, 1.2, 2.5, 7, 18, 60]; // 17 slots
+    for (let i = 0; i < r; i++) { const dir = Math.random() < 0.5 ? 0 : 1; path.push(dir); pos += dir; }
+    const multipliers8  = [10, 3, 1.4, 0.4, 0.2, 0.4, 1.4, 3, 10];
+    const multipliers12 = [20, 6, 2.5, 1.1, 0.5, 0.2, 0.2, 0.2, 0.5, 1.1, 2.5, 6, 20];
+    const multipliers16 = [60, 18, 7, 2.5, 1.2, 0.5, 0.3, 0.2, 0.2, 0.2, 0.3, 0.5, 1.2, 2.5, 7, 18, 60];
     const mults = r <= 8 ? multipliers8 : r <= 12 ? multipliers12 : multipliers16;
     const mult = mults[pos] || 0.2;
     const gain = parseFloat((amt * mult).toFixed(6));
     await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
-    if (gain > 0) {
-      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
-    }
+    if (gain > 0) await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
     const delta = parseFloat((gain - amt).toFixed(6));
     if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'plinko_win' : 'plinko_lose');
-    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[PLINKO] ${user.username} pos:${pos}/${r} mult:${mult} delta:${delta}`);
-    return json(res, 200, { ok: true, path, slot: pos, mult, gain, balance: updated.rows[0].balance });
+    const perksP = await getUserPerks(user.username);
+    let cbP = 0; if (delta < 0) cbP = await applyCashback(user.username, Math.abs(delta), perksP);
+    const xpP = await addXp(user.username, delta > 0 ? 'plinko_win' : 'plinko_lose');
+    const updatedP = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[PLINKO] ${user.username} pos:${pos}/${r} mult:${mult} delta:${delta} +${xpP}xp`);
+    return json(res, 200, { ok: true, path, slot: pos, mult, gain, balance: updatedP.rows[0].balance, xp_gained: xpP, cashback: cbP });
   }
 
   // GAME — KENO
@@ -742,9 +861,12 @@ async function api(req, res) {
     }
     const delta = parseFloat((gain - amt).toFixed(6));
     if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'keno_win' : 'keno_lose');
-    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[KENO] ${user.username} picks:${n} hits:${hits} mult:${mult}`);
-    return json(res, 200, { ok: true, drawn, hits, mult, gain, balance: updated.rows[0].balance });
+    const perksK = await getUserPerks(user.username);
+    let cbK = 0; if (delta < 0) cbK = await applyCashback(user.username, Math.abs(delta), perksK);
+    const xpK = await addXp(user.username, delta > 0 ? 'keno_win' : 'keno_lose');
+    const updatedK = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[KENO] ${user.username} picks:${n} hits:${hits} mult:${mult} +${xpK}xp`);
+    return json(res, 200, { ok: true, drawn, hits, mult, gain, balance: updatedK.rows[0].balance, xp_gained: xpK, cashback: cbK });
   }
 
   // GAME — POKER (video poker, 5-card draw vs house)
@@ -807,9 +929,12 @@ async function api(req, res) {
       }
       const delta = parseFloat((gain - amt).toFixed(6));
       if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'poker_win' : 'poker_lose');
+      const perksPoker = await getUserPerks(user.username);
+      let cbPoker = 0; if (delta < 0) cbPoker = await applyCashback(user.username, Math.abs(delta), perksPoker);
+      const xpPoker = await addXp(user.username, delta > 0 ? 'poker_win' : 'poker_lose');
       const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-      console.log(`[POKER] ${user.username} ${result.name} mult:${result.mult} delta:${delta}`);
-      return json(res, 200, { ok: true, hand: newHand, result, gain, balance: updated.rows[0].balance });
+      console.log(`[POKER] ${user.username} ${result.name} mult:${result.mult} delta:${delta} +${xpPoker}xp`);
+      return json(res, 200, { ok: true, hand: newHand, result, gain, balance: updated.rows[0].balance, xp_gained: xpPoker, cashback: cbPoker });
     }
 
     return json(res, 400, { error: 'Action inconnue.' });
@@ -823,18 +948,15 @@ async function api(req, res) {
     const amt = parseFloat(parseFloat(amount).toFixed(6));
     if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
     if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
-    // Generate 9-cell scratch grid, 3 hidden, needs 3-of-a-kind to win
     const syms = ['◈','◆','★','▲','●','■'];
-    const weights = [2, 3, 5, 7, 10, 15]; // rarer = higher value
+    const weights = [2, 3, 5, 7, 10, 15];
     const mults  = [50, 20, 10, 5, 2.5, 1.5];
     function pickSym() {
-      const total = weights.reduce((a,b)=>a+b,0);
-      let r = Math.random()*total;
+      const total = weights.reduce((a,b)=>a+b,0); let r = Math.random()*total;
       for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r <= 0) return i; }
       return syms.length-1;
     }
     const grid = Array.from({length:9}, () => pickSym());
-    // Force a win ~30% of the time for fun
     let winSym = -1, mult = 0;
     const counts = {};
     grid.forEach(s => counts[s] = (counts[s]||0)+1);
@@ -842,14 +964,15 @@ async function api(req, res) {
     if (triple) { winSym = parseInt(triple[0]); mult = mults[winSym]; }
     const gain = parseFloat((amt * mult).toFixed(6));
     await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
-    if (gain > 0) {
-      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
-    }
+    if (gain > 0) await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
     const delta = parseFloat((gain - amt).toFixed(6));
     if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'scratch_win' : 'scratch_lose');
-    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[SCRATCH] ${user.username} winSym:${winSym} mult:${mult} delta:${delta}`);
-    return json(res, 200, { ok: true, grid: grid.map(i => syms[i]), gridIdx: grid, winSym, mult, gain, balance: updated.rows[0].balance });
+    const perksSc = await getUserPerks(user.username);
+    let cbSc = 0; if (delta < 0) cbSc = await applyCashback(user.username, Math.abs(delta), perksSc);
+    const xpSc = await addXp(user.username, delta > 0 ? 'scratch_win' : 'scratch_lose');
+    const updatedSc = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[SCRATCH] ${user.username} winSym:${winSym} mult:${mult} delta:${delta} +${xpSc}xp`);
+    return json(res, 200, { ok: true, grid: grid.map(i => syms[i]), gridIdx: grid, winSym, mult, gain, balance: updatedSc.rows[0].balance, xp_gained: xpSc, cashback: cbSc });
   }
 
   // GAME — TOWER
@@ -863,7 +986,6 @@ async function api(req, res) {
       if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
       if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
       await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
-      // 8 levels, each row has 3 tiles, 1 is a trap
       const traps = Array.from({length:8}, () => Math.floor(Math.random()*3));
       const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
       return json(res, 200, { ok: true, traps, balance: updated.rows[0].balance });
@@ -871,16 +993,18 @@ async function api(req, res) {
 
     if (action === 'step') {
       const { traps, bet } = towerState;
-      const lvl = parseInt(level);
-      const ch = parseInt(choice);
+      const lvl = parseInt(level), ch = parseInt(choice);
       const trap = traps[lvl];
       const hit = ch === trap;
-      const mults = [1.4, 2, 2.8, 4, 5.5, 8, 12, 20]; // per level cleared
+      const mults = [1.4, 2, 2.8, 4, 5.5, 8, 12, 20];
       if (hit) {
         const amt = parseFloat(parseFloat(bet).toFixed(6));
         await addHistory(user.username, -amt, 'tower_lose');
+        const perksTl = await getUserPerks(user.username);
+        const cbTl = await applyCashback(user.username, amt, perksTl);
+        const xpTl = await addXp(user.username, 'tower_lose');
         const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-        return json(res, 200, { ok: true, hit: true, trap, balance: updated.rows[0].balance });
+        return json(res, 200, { ok: true, hit: true, trap, balance: updated.rows[0].balance, xp_gained: xpTl, cashback: cbTl });
       }
       const nextLevel = lvl + 1;
       const cleared = nextLevel >= 8;
@@ -896,12 +1020,58 @@ async function api(req, res) {
       const gain = parseFloat((amt * mult).toFixed(6));
       await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
       await addHistory(user.username, gain - amt, 'tower_cashout');
+      const xpTc = await addXp(user.username, 'tower_cashout');
       const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-      console.log(`[TOWER] ${user.username} lvl:${lvl} mult:${mult} +${gain}`);
-      return json(res, 200, { ok: true, gain, mult, balance: updated.rows[0].balance });
+      console.log(`[TOWER] ${user.username} lvl:${lvl} mult:${mult} +${gain} +${xpTc}xp`);
+      return json(res, 200, { ok: true, gain, mult, balance: updated.rows[0].balance, xp_gained: xpTc });
     }
 
     return json(res, 400, { error: 'Action inconnue.' });
+  }
+
+  // PERKS — LIST
+  if (endpoint === '/api/perks' && req.method === 'GET') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const owned = await getUserPerks(user.username);
+    const lvlData = levelFromXp(user.xp || 0);
+    const catalog = Object.values(PERKS).map(p => {
+      const curLvl = owned[p.id] || 0;
+      const maxed = curLvl >= p.maxLvl;
+      return {
+        id: p.id, name: p.name, cat: p.cat,
+        desc: p.desc, maxLvl: p.maxLvl,
+        currentLevel: curLvl,
+        nextCost: maxed ? null : perkCost(p.id, curLvl),
+        maxed,
+      };
+    });
+    return json(res, 200, { ok: true, catalog, owned, level: lvlData.level, xp: user.xp || 0, balance: user.balance });
+  }
+
+  // PERKS — BUY / UPGRADE
+  if (endpoint === '/api/perks/buy' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { perk_id } = await body(req);
+    const perk = PERKS[perk_id];
+    if (!perk) return json(res, 400, { error: 'Perk inconnu.' });
+    const owned = await getUserPerks(user.username);
+    const curLvl = owned[perk_id] || 0;
+    if (curLvl >= perk.maxLvl) return json(res, 400, { error: 'Perk déjà au niveau maximum.' });
+    const cost = perkCost(perk_id, curLvl);
+    if (user.balance < cost) return json(res, 400, { error: `Solde insuffisant. Coût : ${cost} ARCH` });
+    await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [cost, user.username]);
+    if (curLvl === 0) {
+      await query('INSERT INTO player_perks (username, perk_id, level) VALUES ($1, $2, 1)', [user.username, perk_id]);
+    } else {
+      await query('UPDATE player_perks SET level = level + 1 WHERE username = $1 AND perk_id = $2', [user.username, perk_id]);
+    }
+    await addHistory(user.username, -cost, `perk_buy_${perk_id}`);
+    const newLevel = curLvl + 1;
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[PERK] ${user.username} bought ${perk_id} lvl${newLevel} for ${cost} ARCH`);
+    return json(res, 200, { ok: true, perk_id, newLevel, balance: updated.rows[0].balance });
   }
 
   // ADMIN
