@@ -56,6 +56,12 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 .game-card { border: 1px solid var(--green4); background: rgba(0,8,0,0.92); padding: 20px 18px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden; }
 .game-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--green3), transparent); opacity: 0.5; }
 .game-card:hover { border-color: var(--green); box-shadow: 0 0 20px #00ff4120; transform: translateY(-2px); }
+.game-card.locked { cursor: default; opacity: 0.45; filter: grayscale(0.4); }
+.game-card.locked:hover { border-color: var(--green4); box-shadow: none; transform: none; }
+.game-card.locked .game-name { color: var(--green3); }
+.lock-overlay { position:absolute; top:8px; right:8px; display:flex; flex-direction:column; align-items:center; gap:2px; pointer-events:none; }
+.lock-icon { font-size:1rem; color:#ffe066bb; text-shadow:0 0 8px #ffe06688; }
+.lock-lvl { font-size:0.42rem; letter-spacing:2px; color:#ffe066aa; font-family:var(--font); }
 .game-icon { font-size: 2rem; margin-bottom: 10px; filter: drop-shadow(0 0 6px var(--green)); }
 .game-name { font-size: 0.82rem; color: var(--green); letter-spacing: 2px; font-weight: bold; margin-bottom: 6px; }
 .game-desc { font-size: 0.6rem; color: var(--green3); line-height: 1.7; margin-bottom: 12px; }
@@ -372,84 +378,84 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 
     <div class="games-title">&#9670; SELECTION DU JEU</div>
     <div class="games-grid">
-      <div class="game-card" onclick="openGame('coinflip')">
+      <div class="game-card" id="card-coinflip" data-game="coinflip">
         <span class="game-badge">LIVE</span>
         <div class="game-icon" style="font-size:1.8rem;letter-spacing:2px;font-weight:900;">&#9679;</div>
         <div class="game-name">COIN FLIP</div>
         <div class="game-desc">Pile ou face en 3D. Double ta mise ou perds tout. 50% de chance.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('dice')">
+      <div class="game-card" id="card-dice" data-game="dice">
         <span class="game-badge">LIVE</span>
         <div class="game-icon">&#9864;</div>
         <div class="game-name">DICE ROLL</div>
         <div class="game-desc">Choisis un de de 1 a 6. Si tu gagnes, x5 ta mise.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('slots')">
+      <div class="game-card" id="card-slots" data-game="slots">
         <span class="game-badge">LIVE</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9672;</div>
         <div class="game-name">SLOT MACHINE</div>
         <div class="game-desc">3 rouleaux. Aligne 3 symboles identiques jusqu'a x50.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('blackjack')">
+      <div class="game-card" id="card-blackjack" data-game="blackjack">
         <span class="game-badge">LIVE</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9824;</div>
         <div class="game-name">BLACKJACK</div>
         <div class="game-desc">21 contre le dealer. Hit, stand ou double. Blackjack paye x2.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('mines')">
+      <div class="game-card" id="card-mines" data-game="mines">
         <span class="game-badge">LIVE</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9633;</div>
         <div class="game-name">MINES</div>
         <div class="game-desc">Evite les mines sur une grille 5x5. Cash out avant d'exploser.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('crash')">
+      <div class="game-card" id="card-crash" data-game="crash">
         <span class="game-badge">LIVE</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9651;</div>
         <div class="game-name">CRASH</div>
         <div class="game-desc">Le multiplicateur monte. Cashout avant que ca s'effondre.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('roulette')">
+      <div class="game-card" id="card-roulette" data-game="roulette">
         <span class="game-badge">NEW</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9711;</div>
         <div class="game-name">ROULETTE</div>
         <div class="game-desc">Mise sur un numéro, couleur ou douzaine. Numéro plein x36.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('plinko')">
+      <div class="game-card" id="card-plinko" data-game="plinko">
         <span class="game-badge">NEW</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#8901;</div>
         <div class="game-name">PLINKO</div>
         <div class="game-desc">La balle rebondit sur les chevilles. Jusqu'à x60 au centre.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('keno')">
+      <div class="game-card" id="card-keno" data-game="keno">
         <span class="game-badge">NEW</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9632;</div>
         <div class="game-name">KENO</div>
         <div class="game-desc">Choisis jusqu'à 10 numéros. 20 tirés au sort. x10000 max.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('poker')">
+      <div class="game-card" id="card-poker" data-game="poker">
         <span class="game-badge">NEW</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9827;</div>
         <div class="game-name">VIDEO POKER</div>
         <div class="game-desc">5 cartes, garde ce que tu veux. Quinte royale x800.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('scratch')">
+      <div class="game-card" id="card-scratch" data-game="scratch">
         <span class="game-badge">NEW</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9670;</div>
         <div class="game-name">SCRATCH CARD</div>
         <div class="game-desc">Gratte 9 cases. 3 symboles identiques = jackpot x50.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openGame('tower')">
+      <div class="game-card" id="card-tower" data-game="tower">
         <span class="game-badge">NEW</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9650;</div>
         <div class="game-name">TOWER</div>
@@ -927,6 +933,7 @@ function updateXpDisplay(xp, level, xpInLevel, xpForNext) {
   const pct = Math.min(100, Math.round(xpInLevel / xpForNext * 100));
   document.getElementById('walletLevel').textContent = level;
   document.getElementById('walletXpText').textContent = xpInLevel + ' / ' + xpForNext + ' XP';
+  applyGameLocks(level);
   document.getElementById('walletXpBar').style.width = pct + '%';
 }
 
@@ -1038,6 +1045,53 @@ if(token){archFetch('/api/me').then(d=>{if(d.username){username=d.username;showH
 function setMax(id){if(balance>0)document.getElementById(id).value=balance.toFixed(6);}
 
 const resultMap={coinflip:'cfResult',dice:'diceResult',slots:'slotsResult',blackjack:'bjResult',mines:'minesResult',crash:'crashResult',roulette:'rouletteResult',plinko:'plinkoResult',keno:'kenoResult',poker:'pokerResult',scratch:'scratchResult',tower:'towerResult'};
+// ── GAME LOCK SYSTEM ──────────────────────────────────────────
+// Ordre progressif : 1 jeu débloqué par niveau (lvl 1 = coinflip, lvl 2 = dice, ...)
+const GAME_UNLOCK_LEVEL = {
+  coinflip: 1,
+  dice:     2,
+  slots:    3,
+  blackjack:4,
+  mines:    5,
+  crash:    6,
+  roulette: 7,
+  plinko:   8,
+  keno:     9,
+  poker:    10,
+  scratch:  11,
+  tower:    12,
+};
+
+function applyGameLocks(level) {
+  for (const [game, reqLvl] of Object.entries(GAME_UNLOCK_LEVEL)) {
+    const card = document.getElementById('card-' + game);
+    if (!card) continue;
+    const locked = level < reqLvl;
+    if (locked) {
+      card.classList.add('locked');
+      // Inject lock overlay if not already present
+      if (!card.querySelector('.lock-overlay')) {
+        const overlay = document.createElement('div');
+        overlay.className = 'lock-overlay';
+        overlay.innerHTML = '<div class="lock-icon">&#128274;</div><div class="lock-lvl">NV.' + reqLvl + '</div>';
+        card.appendChild(overlay);
+      }
+    } else {
+      card.classList.remove('locked');
+      const existing = card.querySelector('.lock-overlay');
+      if (existing) existing.remove();
+    }
+  }
+}
+
+// Global click handler for all game cards
+document.querySelectorAll('.game-card[data-game]').forEach(card => {
+  card.addEventListener('click', () => {
+    if (card.classList.contains('locked')) return;
+    openGame(card.dataset.game);
+  });
+});
+
 function openGame(game){
   const modalId='modal'+game.charAt(0).toUpperCase()+game.slice(1);
   document.getElementById(modalId).classList.add('open');
