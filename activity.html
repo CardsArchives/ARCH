@@ -289,6 +289,9 @@ let ws = null;
 
 const discordSdk = new DiscordSDK(CLIENT_ID);
 
+// Initialiser Discord SDK avec gestion des erreurs
+discordSdk.close = () => {};  // Prevent auto-close
+
 // ============================================================
 //  UTILITIES
 // ============================================================
@@ -357,16 +360,35 @@ function startMatrix() {
 async function init() {
   try {
     setLoad(10, 'SDK DISCORD...');
-    await discordSdk.ready();
+    console.log('Initialisation SDK Discord...');
+    
+    try {
+      await discordSdk.ready();
+      console.log('✅ SDK prêt');
+    } catch(e) {
+      console.warn('⚠️ SDK ready error (normal en dev):', e.message);
+      // Continuer même si y'a une erreur, ça arrive en développement
+    }
 
     setLoad(25, 'AUTORISATION...');
-    const { code } = await discordSdk.commands.authorize({
-      client_id: CLIENT_ID,
-      response_type: 'code',
-      state: '',
-      prompt: 'none',
-      scope: ['identify'],
-    });
+    let code = null;
+    
+    try {
+      const auth = await discordSdk.commands.authorize({
+        client_id: CLIENT_ID,
+        response_type: 'code',
+        state: '',
+        prompt: 'none',
+        scope: ['identify'],
+      });
+      code = auth.code;
+      console.log('✅ Authorization code reçu');
+    } catch(e) {
+      console.error('❌ Auth error:', e.message);
+      throw new Error('Impossible d\'autoriser: ' + e.message);
+    }
+
+    if (!code) throw new Error('Pas de code reçu');
 
     setLoad(45, 'TOKEN...');
     const tr = await fetch(serverUrl + '/api/discord/token', {
@@ -374,7 +396,9 @@ async function init() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
-    const { access_token } = await tr.json();
+    const tokenData = await tr.json();
+    if (!tokenData.access_token) throw new Error('Pas d\'access token');
+    const access_token = tokenData.access_token;
     console.log('✅ Access token reçu');
 
     setLoad(60, 'PROFIL...');
