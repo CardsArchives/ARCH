@@ -122,6 +122,8 @@ h1 {
   <div class="info" id="info"></div>
 </div>
 
+<script async src="https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0"></script>
+
 <script>
 // ============================================================
 //  CONFIG
@@ -168,42 +170,71 @@ function setInfo(msg) {
 }
 
 // ============================================================
-//  DISCORD OAUTH2 (sans SDK, juste fetch)
+//  DISCORD SDK
 // ============================================================
-async function getDiscordUser() {
+async function initDiscordSDK() {
   try {
-    setStatus('🔐 Récupération du code...', 'loading');
-    
-    // En Discord Activity, on est déjà authentifié via le context
-    // On peut directement appeler notre API
-    console.log('✅ Authentification Discord Activity directe');
-    
-    // Simulation d'un utilisateur Discord (en prod, Discord injecte ça)
-    // Pour maintenant, on skip l'auth Discord et on va directement au serveur
-    return { 
-      id: Math.random().toString(36).substring(7),
-      username: 'DiscordUser' + Math.floor(Math.random() * 10000),
-      avatar: null
-    };
+    // Attendre que le SDK soit chargé
+    if (!window.DiscordSDK) {
+      console.log('⏳ En attente du SDK Discord...');
+      await new Promise(resolve => {
+        const checkSDK = setInterval(() => {
+          if (window.DiscordSDK) {
+            clearInterval(checkSDK);
+            resolve();
+          }
+        }, 100);
+        setTimeout(() => { clearInterval(checkSDK); resolve(); }, 5000);
+      });
+    }
+
+    if (!window.DiscordSDK) {
+      throw new Error('Discord SDK not loaded');
+    }
+
+    const discordSdk = new window.DiscordSDK(CLIENT_ID);
+    console.log('✅ SDK Discord initialisé');
+
+    // Ready
+    await discordSdk.ready();
+    console.log('✅ SDK prêt');
+
+    // Authorize
+    const { code } = await discordSdk.commands.authorize({
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      state: '',
+      prompt: 'none',
+      scope: ['identify'],
+    });
+    console.log('✅ Code d\'autorisation reçu');
+
+    // Token exchange
+    const tr = await fetch(serverUrl + '/api/discord/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const { access_token } = await tr.json();
+    console.log('✅ Access token reçu');
+
+    // Authenticate
+    const auth = await discordSdk.commands.authenticate({ access_token });
+    myUser = auth.user;
+    console.log('✅ Profil Discord:', myUser.username);
+
+    return true;
   } catch(e) {
-    console.error('Erreur Discord:', e);
-    throw e;
+    console.error('❌ Erreur Discord SDK:', e.message);
+    return false;
   }
 }
 
 // ============================================================
-//  MAIN
+//  CREATE ARCH ACCOUNT
 // ============================================================
-async function init() {
+async function createArchAccount() {
   try {
-    setStatus('🔐 Authentification...', 'loading');
-    
-    // 1. Récupérer l'utilisateur Discord
-    myUser = await getDiscordUser();
-    console.log('✅ Utilisateur Discord:', myUser.username);
-    
-    // 2. Créer/récupérer le compte ARCH
-    setStatus('📝 Création compte ARCH...', 'loading');
     const ar = await fetch(serverUrl + '/api/discord/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -215,30 +246,16 @@ async function init() {
     });
     
     const ad = await ar.json();
-    console.log('Réponse serveur:', ad);
-    
-    if (!ad.token) {
-      throw new Error('Compte non créé: ' + JSON.stringify(ad));
-    }
+    if (!ad.token) throw new Error('Compte non créé');
     
     token = ad.token;
     balance = ad.balance || 0;
     console.log('✅ Compte ARCH:', ad.username);
     
-    // 3. Connecter WebSocket
-    setStatus('🔌 Connexion WebSocket...', 'loading');
-    await connectWS();
-    
-    // 4. Succès!
-    setStatus('✅ Connecté!', 'success');
-    setBalance(balance);
-    setInfo('Discord Activity est connectée et fonctionne!');
-    document.getElementById('testBtn').disabled = false;
-    
+    return true;
   } catch(e) {
-    console.error('❌ Erreur:', e);
-    setStatus('❌ Erreur: ' + e.message, 'error');
-    setInfo(e.message);
+    console.error('❌ Erreur création compte:', e.message);
+    return false;
   }
 }
 
@@ -249,12 +266,10 @@ async function connectWS() {
   return new Promise((resolve) => {
     let wsUrl = serverUrl;
     
-    // S'assurer que wsUrl commence par http:// ou https://
     if (!wsUrl.startsWith('http')) {
       wsUrl = location.protocol + '//' + wsUrl;
     }
     
-    // Convertir http en ws, https en wss
     wsUrl = wsUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
     wsUrl = wsUrl + '/ws?token=' + token;
     
@@ -293,15 +308,47 @@ async function connectWS() {
 }
 
 // ============================================================
-//  STARTUP
+//  MAIN
 // ============================================================
-init();
+async function init() {
+  try {
+    setStatus('🔐 Authentification Discord...', 'loading');
+    const discordOk = await initDiscordSDK();
+    
+    if (!discordOk) {
+      throw new Error('Discord SDK failed');
+    }
+
+    setStatus('📝 Création compte ARCH...', 'loading');
+    const archOk = await createArchAccount();
+    
+    if (!archOk) {
+      throw new Error('Account creation failed');
+    }
+
+    setStatus('🔌 Connexion WebSocket...', 'loading');
+    await connectWS();
+
+    setStatus('✅ Connecté!', 'success');
+    setBalance(balance);
+    setInfo('Discord Activity connectée!');
+    document.getElementById('testBtn').disabled = false;
+
+  } catch(e) {
+    console.error('❌ Erreur:', e);
+    setStatus('❌ Erreur: ' + e.message, 'error');
+    setInfo(e.message);
+  }
+}
+
+// Démarrer après que la page soit chargée
+window.addEventListener('load', init);
 
 // Test button
 document.getElementById('testBtn').addEventListener('click', () => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'status', status: 'playing' }));
-    setInfo('Message envoyé au serveur');
+    setInfo('Message envoyé');
   }
 });
 </script>
