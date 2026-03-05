@@ -1162,16 +1162,48 @@ const server = http.createServer(async (req, res) => {
 
   // Activity Discord — sert activity.html avec CLIENT_ID et SERVER_URL injectés
   if (req.url === '/activity' || req.url === '/activity/') {
-    fs.readFile('./activity.html', 'utf8', (err, data) => {
-      if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
+    console.log('[/activity] Requête reçue');
+    
+    // Essayer plusieurs chemins
+    const possiblePaths = [
+      './activity.html',
+      'activity.html',
+      path.join(__dirname, 'activity.html'),
+      path.join(process.cwd(), 'activity.html'),
+    ];
+    
+    let filePath = null;
+    for (let p of possiblePaths) {
+      console.log('[/activity] Essai:', p);
+      if (fs.existsSync(p)) {
+        filePath = p;
+        console.log('[/activity] ✅ Trouvé:', p);
+        break;
+      }
+    }
+    
+    if (!filePath) {
+      console.log('[/activity] ❌ Fichier non trouvé');
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      return res.end(`<h1>activity.html not found</h1><p>Chemins essayés:<br>${possiblePaths.join('<br>')}</p>`);
+    }
+    
+    fs.readFile(filePath, 'utf8', (err, data) => {
+      if (err) {
+        console.log('[/activity] ❌ Erreur lecture:', err.message);
+        res.writeHead(500);
+        return res.end('Erreur lecture: ' + err.message);
+      }
       
       // Déterminer l'URL du serveur
       const host = req.headers.host;
       const proto = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http');
       const serverUrl = `${proto}://${host}`;
       
+      console.log('[/activity] Injection: CLIENT_ID + SERVER_URL');
+      
       // Injecter CLIENT_ID et SERVER_URL
-      let injected = data
+      const injected = data
         .replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId)
         .replace('__SERVER_URL__', serverUrl);
       
