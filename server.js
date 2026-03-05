@@ -15,9 +15,9 @@ const { Pool } = require('pg');
 const CONFIG = {
   port:         process.env.PORT || 3000,
   currency:     'ARCH',
-  scanInterval: 30,
-  scanDuration: 25,
-  claimWindow:  5,
+  scanInterval: 60,
+  scanDuration: 50,
+  claimWindow:  10,
   adminPass:    process.env.ADMIN_PASS || 'CHANGE_MOI',
 };
 
