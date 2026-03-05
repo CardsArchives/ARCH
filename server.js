@@ -630,6 +630,280 @@ async function api(req, res) {
     return json(res, 400, { error: 'Action inconnue.' });
   }
 
+  // GAME — ROULETTE
+  if (endpoint === '/api/game/roulette' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { betType, betValue, amount } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+    if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+    const spin = Math.floor(Math.random() * 37); // 0-36
+    const reds = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+    const isRed = reds.includes(spin);
+    const isBlack = spin > 0 && !isRed;
+    let mult = 0;
+    if (betType === 'number' && parseInt(betValue) === spin) mult = 36;
+    else if (betType === 'red' && isRed) mult = 2;
+    else if (betType === 'black' && isBlack) mult = 2;
+    else if (betType === 'even' && spin > 0 && spin % 2 === 0) mult = 2;
+    else if (betType === 'odd' && spin % 2 === 1) mult = 2;
+    else if (betType === 'low' && spin >= 1 && spin <= 18) mult = 2;
+    else if (betType === 'high' && spin >= 19 && spin <= 36) mult = 2;
+    else if (betType === 'dozen1' && spin >= 1 && spin <= 12) mult = 3;
+    else if (betType === 'dozen2' && spin >= 13 && spin <= 24) mult = 3;
+    else if (betType === 'dozen3' && spin >= 25 && spin <= 36) mult = 3;
+    await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+    let gain = 0;
+    if (mult > 0) {
+      gain = parseFloat((amt * mult).toFixed(6));
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
+      await addHistory(user.username, gain - amt, 'roulette_win');
+    } else {
+      await addHistory(user.username, -amt, 'roulette_lose');
+    }
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[ROULETTE] ${user.username} spin:${spin} bet:${betType}/${betValue} mult:${mult}`);
+    return json(res, 200, { ok: true, spin, isRed, mult, gain, balance: updated.rows[0].balance });
+  }
+
+  // GAME — PLINKO
+  if (endpoint === '/api/game/plinko' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { amount, rows } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    const r = Math.min(Math.max(parseInt(rows) || 8, 8), 16);
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+    if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+    // Simulate path
+    let pos = 0;
+    const path = [];
+    for (let i = 0; i < r; i++) {
+      const dir = Math.random() < 0.5 ? 0 : 1;
+      path.push(dir);
+      pos += dir;
+    }
+    // Multipliers for each slot (bell curve, house edge ~3%)
+    const multipliers8  = [10, 3, 1.4, 0.4, 0.2, 0.4, 1.4, 3, 10];
+    const multipliers12 = [20, 6, 2.5, 1.1, 0.5, 0.2, 0.2, 0.5, 1.1, 2.5, 6, 20];
+    const multipliers16 = [60, 18, 7, 2.5, 1.2, 0.5, 0.3, 0.2, 0.2, 0.3, 0.5, 1.2, 2.5, 7, 18, 60];
+    const mults = r <= 8 ? multipliers8 : r <= 12 ? multipliers12 : multipliers16;
+    const mult = mults[pos] || 0.2;
+    const gain = parseFloat((amt * mult).toFixed(6));
+    await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+    if (gain > 0) {
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
+    }
+    const delta = parseFloat((gain - amt).toFixed(6));
+    if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'plinko_win' : 'plinko_lose');
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[PLINKO] ${user.username} pos:${pos}/${r} mult:${mult} delta:${delta}`);
+    return json(res, 200, { ok: true, path, slot: pos, mult, gain, balance: updated.rows[0].balance });
+  }
+
+  // GAME — KENO
+  if (endpoint === '/api/game/keno' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { amount, picks } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+    if (!Array.isArray(picks) || picks.length < 1 || picks.length > 10) return json(res, 400, { error: 'Choisis entre 1 et 10 numéros.' });
+    if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+    // Draw 20 numbers from 1-80
+    const pool = Array.from({length: 80}, (_, i) => i + 1);
+    const drawn = [];
+    for (let i = 0; i < 20; i++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      drawn.push(pool.splice(idx, 1)[0]);
+    }
+    drawn.sort((a, b) => a - b);
+    const hits = picks.filter(p => drawn.includes(p)).length;
+    const n = picks.length;
+    // Payout table (hits needed → multiplier)
+    const payouts = {
+      1: [0, 3.8],
+      2: [0, 1, 9],
+      3: [0, 0, 3, 27],
+      4: [0, 0, 1, 5, 55],
+      5: [0, 0, 1, 3, 15, 120],
+      6: [0, 0, 0, 2, 7, 35, 300],
+      7: [0, 0, 0, 1, 4, 15, 100, 750],
+      8: [0, 0, 0, 0, 2, 8, 40, 200, 2000],
+      9: [0, 0, 0, 0, 1, 5, 20, 80, 500, 5000],
+      10:[0, 0, 0, 0, 1, 3, 10, 40, 200, 1000, 10000],
+    };
+    const mult = (payouts[n] || [])[hits] || 0;
+    const gain = parseFloat((amt * mult).toFixed(6));
+    await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+    if (gain > 0) {
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
+    }
+    const delta = parseFloat((gain - amt).toFixed(6));
+    if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'keno_win' : 'keno_lose');
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[KENO] ${user.username} picks:${n} hits:${hits} mult:${mult}`);
+    return json(res, 200, { ok: true, drawn, hits, mult, gain, balance: updated.rows[0].balance });
+  }
+
+  // GAME — POKER (video poker, 5-card draw vs house)
+  if (endpoint === '/api/game/poker' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { action, amount, held, gameState: gs } = await body(req);
+
+    function makeDeck() {
+      const suits = ['♠','♥','♦','♣'], vals = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+      const d = suits.flatMap(s => vals.map(v => ({ v, s })));
+      for (let i = d.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+      return d;
+    }
+    function rankHand(hand) {
+      const order = '23456789TJQKA';
+      const vals = hand.map(c => order.indexOf(c.v === '10' ? 'T' : c.v)).sort((a,b)=>a-b);
+      const suits = hand.map(c => c.s);
+      const flush = suits.every(s => s === suits[0]);
+      const straight = vals[4]-vals[0]===4 && new Set(vals).size===5 || (vals.join('')==='01234' && vals[4]===12);
+      const counts = {};
+      vals.forEach(v => counts[v] = (counts[v]||0)+1);
+      const c = Object.values(counts).sort((a,b)=>b-a);
+      if (flush && straight && vals[4]===12 && vals[0]===8) return { name: 'QUINTE ROYALE',   mult: 800 };
+      if (flush && straight)                                 return { name: 'QUINTE FLUSH',    mult: 50 };
+      if (c[0]===4)                                          return { name: 'CARRÉ',           mult: 25 };
+      if (c[0]===3 && c[1]===2)                              return { name: 'FULL HOUSE',      mult: 9 };
+      if (flush)                                             return { name: 'COULEUR',         mult: 6 };
+      if (straight)                                          return { name: 'QUINTE',          mult: 4 };
+      if (c[0]===3)                                          return { name: 'BRELAN',          mult: 3 };
+      if (c[0]===2 && c[1]===2)                             return { name: 'DEUX PAIRES',     mult: 2 };
+      if (c[0]===2) {
+        const pairVal = parseInt(Object.keys(counts).find(k => counts[k]===2));
+        if (pairVal >= 9) return { name: 'PAIRE J-A',      mult: 1 };
+      }
+      return { name: 'RIEN',                                                                   mult: 0 };
+    }
+
+    if (action === 'deal') {
+      const amt = parseFloat(parseFloat(amount).toFixed(6));
+      if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+      if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+      await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+      const deck = makeDeck();
+      const hand = [deck.pop(), deck.pop(), deck.pop(), deck.pop(), deck.pop()];
+      const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+      return json(res, 200, { ok: true, hand, deck, balance: updated.rows[0].balance });
+    }
+
+    if (action === 'draw') {
+      const { hand: h, deck: d, bet } = gs;
+      const amt = parseFloat(parseFloat(bet).toFixed(6));
+      const heldArr = Array.isArray(held) ? held : [];
+      const deck = d;
+      const newHand = h.map((card, i) => heldArr.includes(i) ? card : deck.pop());
+      const result = rankHand(newHand);
+      const gain = parseFloat((amt * result.mult).toFixed(6));
+      if (gain > 0) {
+        await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
+      }
+      const delta = parseFloat((gain - amt).toFixed(6));
+      if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'poker_win' : 'poker_lose');
+      const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+      console.log(`[POKER] ${user.username} ${result.name} mult:${result.mult} delta:${delta}`);
+      return json(res, 200, { ok: true, hand: newHand, result, gain, balance: updated.rows[0].balance });
+    }
+
+    return json(res, 400, { error: 'Action inconnue.' });
+  }
+
+  // GAME — MEMORY / SCRATCH CARD
+  if (endpoint === '/api/game/scratch' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { amount } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+    if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+    // Generate 9-cell scratch grid, 3 hidden, needs 3-of-a-kind to win
+    const syms = ['◈','◆','★','▲','●','■'];
+    const weights = [2, 3, 5, 7, 10, 15]; // rarer = higher value
+    const mults  = [50, 20, 10, 5, 2.5, 1.5];
+    function pickSym() {
+      const total = weights.reduce((a,b)=>a+b,0);
+      let r = Math.random()*total;
+      for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r <= 0) return i; }
+      return syms.length-1;
+    }
+    const grid = Array.from({length:9}, () => pickSym());
+    // Force a win ~30% of the time for fun
+    let winSym = -1, mult = 0;
+    const counts = {};
+    grid.forEach(s => counts[s] = (counts[s]||0)+1);
+    const triple = Object.entries(counts).find(([,v]) => v >= 3);
+    if (triple) { winSym = parseInt(triple[0]); mult = mults[winSym]; }
+    const gain = parseFloat((amt * mult).toFixed(6));
+    await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+    if (gain > 0) {
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
+    }
+    const delta = parseFloat((gain - amt).toFixed(6));
+    if (delta !== 0) await addHistory(user.username, delta, delta > 0 ? 'scratch_win' : 'scratch_lose');
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[SCRATCH] ${user.username} winSym:${winSym} mult:${mult} delta:${delta}`);
+    return json(res, 200, { ok: true, grid: grid.map(i => syms[i]), gridIdx: grid, winSym, mult, gain, balance: updated.rows[0].balance });
+  }
+
+  // GAME — TOWER
+  if (endpoint === '/api/game/tower' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { action, amount, level, choice, towerState } = await body(req);
+
+    if (action === 'start') {
+      const amt = parseFloat(parseFloat(amount).toFixed(6));
+      if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+      if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+      await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+      // 8 levels, each row has 3 tiles, 1 is a trap
+      const traps = Array.from({length:8}, () => Math.floor(Math.random()*3));
+      const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+      return json(res, 200, { ok: true, traps, balance: updated.rows[0].balance });
+    }
+
+    if (action === 'step') {
+      const { traps, bet } = towerState;
+      const lvl = parseInt(level);
+      const ch = parseInt(choice);
+      const trap = traps[lvl];
+      const hit = ch === trap;
+      const mults = [1.4, 2, 2.8, 4, 5.5, 8, 12, 20]; // per level cleared
+      if (hit) {
+        const amt = parseFloat(parseFloat(bet).toFixed(6));
+        await addHistory(user.username, -amt, 'tower_lose');
+        const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+        return json(res, 200, { ok: true, hit: true, trap, balance: updated.rows[0].balance });
+      }
+      const nextLevel = lvl + 1;
+      const cleared = nextLevel >= 8;
+      const mult = mults[lvl];
+      return json(res, 200, { ok: true, hit: false, trap, mult, cleared, nextLevel });
+    }
+
+    if (action === 'cashout') {
+      const { bet, level: lvl } = towerState;
+      const amt = parseFloat(parseFloat(bet).toFixed(6));
+      const mults = [1.4, 2, 2.8, 4, 5.5, 8, 12, 20];
+      const mult = mults[Math.max(0, parseInt(lvl)-1)] || 1;
+      const gain = parseFloat((amt * mult).toFixed(6));
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
+      await addHistory(user.username, gain - amt, 'tower_cashout');
+      const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+      console.log(`[TOWER] ${user.username} lvl:${lvl} mult:${mult} +${gain}`);
+      return json(res, 200, { ok: true, gain, mult, balance: updated.rows[0].balance });
+    }
+
+    return json(res, 400, { error: 'Action inconnue.' });
+  }
+
   // ADMIN
   if (endpoint === '/api/admin/users' && req.method === 'GET') {
     if (url.searchParams.get('pass') !== CONFIG.adminPass)

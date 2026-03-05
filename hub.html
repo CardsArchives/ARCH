@@ -200,6 +200,73 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 .crash-cashout-label { font-size: 0.58rem; color: var(--green3); letter-spacing: 2px; white-space: nowrap; }
 .crash-cashout-input { flex: 1; background: #000; border: 1px solid var(--green4); padding: 8px 12px; font-family: var(--font); font-size: 0.9rem; color: var(--green); outline: none; caret-color: var(--green); margin-bottom: 0; }
 
+/* ═══ ROULETTE ═══ */
+.roulette-wheel-wrap { display:flex; justify-content:center; margin:10px 0; }
+#rouletteCanvas { border:1px solid var(--green3); box-shadow:0 0 20px #00ff4115; border-radius:50%; }
+.roulette-num { font-size:2.5rem; font-weight:900; text-align:center; min-height:50px; letter-spacing:4px; padding:8px 0; transition:color 0.3s; }
+.roulette-num.red { color:var(--red); text-shadow:0 0 12px var(--red); }
+.roulette-num.black { color:var(--green); text-shadow:0 0 12px var(--green); }
+.roulette-num.zero { color:var(--gold); text-shadow:0 0 12px var(--gold); }
+.bet-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:4px; margin:10px 0; }
+.bet-cell { background:transparent; border:1px solid var(--green4); color:var(--green3); font-family:var(--font); font-size:0.6rem; letter-spacing:1px; padding:6px 2px; cursor:pointer; transition:all 0.15s; text-align:center; }
+.bet-cell:hover, .bet-cell.selected { border-color:var(--green); color:var(--green); background:var(--dim); }
+.bet-cell.red-cell { border-color:#ff003c44; color:var(--red); }
+.bet-cell.red-cell.selected, .bet-cell.red-cell:hover { background:rgba(255,0,60,0.12); border-color:var(--red); }
+.bet-grid-special { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin:8px 0; }
+
+/* ═══ PLINKO ═══ */
+#plinkoCanvas { display:block; margin:8px auto; border:1px solid var(--green4); background:#000; }
+.plinko-slots { display:flex; justify-content:space-between; font-size:0.52rem; color:var(--gold); letter-spacing:1px; padding:0 2px; margin-top:2px; }
+.plinko-rows-row { display:flex; gap:8px; align-items:center; margin:10px 0; }
+.plinko-rows-label { font-size:0.58rem; color:var(--green3); letter-spacing:2px; }
+
+/* ═══ KENO ═══ */
+.keno-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; margin:12px 0; }
+.keno-cell { aspect-ratio:1; background:transparent; border:1px solid var(--green4); color:var(--green3); font-family:var(--font); font-size:0.65rem; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; }
+.keno-cell:hover { border-color:var(--green3); color:var(--green); }
+.keno-cell.picked { border-color:var(--green); color:var(--green); background:var(--dim); }
+.keno-cell.drawn { border-color:var(--gold); color:var(--gold); background:rgba(255,224,102,0.12); }
+.keno-cell.hit { border-color:var(--green); color:var(--green); background:rgba(0,255,65,0.25); box-shadow:0 0 10px var(--dim); animation:winPulse 0.5s ease infinite alternate; }
+.keno-info { display:flex; justify-content:space-between; font-size:0.6rem; color:var(--green3); letter-spacing:2px; margin:6px 0; }
+.keno-draw-btn { margin-top:0; }
+
+/* ═══ VIDEO POKER ═══ */
+.poker-cards { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:14px 0; }
+.poker-card { width:52px; height:74px; border:1px solid var(--green); background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:3px; cursor:pointer; transition:all 0.2s; position:relative; box-shadow:0 0 8px rgba(0,255,65,0.15); animation:cardDeal 0.25s ease-out; }
+.poker-card.red { color:var(--red); border-color:var(--red); box-shadow:0 0 8px rgba(255,0,60,0.2); }
+.poker-card.held { transform:translateY(-8px); border-color:var(--gold); box-shadow:0 0 14px rgba(255,224,102,0.4); }
+.poker-card .cv { font-size:1.2rem; font-weight:900; line-height:1.1; }
+.poker-card .cs { font-size:0.9rem; line-height:1; }
+.poker-held-label { position:absolute; bottom:-18px; left:50%; transform:translateX(-50%); font-size:0.48rem; letter-spacing:2px; color:var(--gold); white-space:nowrap; }
+.poker-hand-name { text-align:center; font-size:0.75rem; letter-spacing:4px; color:var(--gold); min-height:20px; margin:6px 0; }
+.poker-paytable { border:1px solid var(--green4); padding:8px 12px; margin:10px 0; font-size:0.55rem; }
+.ppt-row { display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px solid rgba(0,60,0,0.25); color:var(--green3); }
+.ppt-row:last-child { border:none; }
+.ppt-row .ppt-mult { color:var(--gold); }
+
+/* ═══ SCRATCH CARD ═══ */
+.scratch-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; max-width:280px; margin-left:auto; margin-right:auto; }
+.scratch-cell { aspect-ratio:1; border:1px solid var(--green4); background:rgba(0,10,0,0.9); display:flex; align-items:center; justify-content:center; font-size:1.8rem; position:relative; overflow:hidden; cursor:pointer; transition:all 0.15s; }
+.scratch-cell.scratched { background:rgba(0,30,10,0.7); border-color:var(--green3); }
+.scratch-cell.winner { border-color:var(--gold); background:rgba(20,15,0,0.8); box-shadow:0 0 14px rgba(255,224,102,0.4); animation:jackpotPulse 0.5s ease infinite alternate; }
+.scratch-cell .scratch-cover { position:absolute; inset:0; background:repeating-linear-gradient(45deg,#001500,#001500 4px,#002800 4px,#002800 8px); display:flex; align-items:center; justify-content:center; font-size:0.8rem; color:var(--green3); letter-spacing:1px; transition:opacity 0.3s; }
+.scratch-cell.scratched .scratch-cover { opacity:0; pointer-events:none; }
+.scratch-hint { font-size:0.58rem; color:var(--green3); text-align:center; letter-spacing:2px; margin-bottom:8px; }
+
+/* ═══ TOWER ═══ */
+.tower-grid { display:flex; flex-direction:column-reverse; gap:6px; margin:12px 0; }
+.tower-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.tower-tile { aspect-ratio:2/1; border:1px solid var(--green4); background:rgba(0,8,0,0.9); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; transition:all 0.18s; font-family:var(--font); color:var(--green3); }
+.tower-tile:hover:not(.disabled) { border-color:var(--green); color:var(--green); background:var(--dim); }
+.tower-tile.disabled { opacity:0.25; cursor:default; pointer-events:none; }
+.tower-tile.active-row { border-color:var(--green3); color:var(--green); animation:towerPulse 1s ease infinite alternate; }
+.tower-tile.safe { border-color:var(--green); background:rgba(0,40,12,0.7); color:var(--green); }
+.tower-tile.trap { border-color:var(--red); background:rgba(40,0,10,0.7); color:var(--red); animation:crashShake 0.3s ease; }
+.tower-tile.cleared { border-color:var(--green3); background:rgba(0,20,6,0.5); opacity:0.5; cursor:default; pointer-events:none; }
+@keyframes towerPulse { to { border-color:var(--green); box-shadow:0 0 10px var(--dim); } }
+.tower-level-info { display:flex; justify-content:space-between; font-size:0.6rem; color:var(--green3); letter-spacing:2px; margin:4px 0; }
+.tower-mult { color:var(--gold); font-weight:bold; }
+
 /* HISTORY */
 .hist-panel { width: 100%; border: 1px solid var(--green4); background: rgba(0,8,0,0.9); padding: 16px 18px; margin-top: 20px; }
 .hist-title { font-size: 0.55rem; color: var(--green3); letter-spacing: 4px; margin-bottom: 10px; }
@@ -310,6 +377,48 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9651;</div>
         <div class="game-name">CRASH</div>
         <div class="game-desc">Le multiplicateur monte. Cashout avant que ca s'effondre.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+      <div class="game-card" onclick="openGame('roulette')">
+        <span class="game-badge">NEW</span>
+        <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9711;</div>
+        <div class="game-name">ROULETTE</div>
+        <div class="game-desc">Mise sur un numéro, couleur ou douzaine. Numéro plein x36.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+      <div class="game-card" onclick="openGame('plinko')">
+        <span class="game-badge">NEW</span>
+        <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#8901;</div>
+        <div class="game-name">PLINKO</div>
+        <div class="game-desc">La balle rebondit sur les chevilles. Jusqu'à x60 au centre.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+      <div class="game-card" onclick="openGame('keno')">
+        <span class="game-badge">NEW</span>
+        <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9632;</div>
+        <div class="game-name">KENO</div>
+        <div class="game-desc">Choisis jusqu'à 10 numéros. 20 tirés au sort. x10000 max.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+      <div class="game-card" onclick="openGame('poker')">
+        <span class="game-badge">NEW</span>
+        <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9827;</div>
+        <div class="game-name">VIDEO POKER</div>
+        <div class="game-desc">5 cartes, garde ce que tu veux. Quinte royale x800.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+      <div class="game-card" onclick="openGame('scratch')">
+        <span class="game-badge">NEW</span>
+        <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9670;</div>
+        <div class="game-name">SCRATCH CARD</div>
+        <div class="game-desc">Gratte 9 cases. 3 symboles identiques = jackpot x50.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+      <div class="game-card" onclick="openGame('tower')">
+        <span class="game-badge">NEW</span>
+        <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9650;</div>
+        <div class="game-name">TOWER</div>
+        <div class="game-desc">Monte 8 niveaux sans tomber dans le piège. Cash out quand tu veux.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
     </div>
@@ -561,6 +670,175 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   </div>
 </div>
 
+<!-- MODAL ROULETTE -->
+<div class="modal-overlay" id="modalRoulette">
+  <div class="modal" style="width:min(520px,98vw)">
+    <button class="modal-close" onclick="closeModal('modalRoulette')">&#10005;</button>
+    <div class="modal-title">&#9711; ROULETTE</div>
+    <div class="modal-sub">EUROPEENNE 0-36 &mdash; PLEIN x36 / SIMPLE x2</div>
+    <hr class="modal-hr">
+    <div class="roulette-wheel-wrap"><canvas id="rouletteCanvas" width="200" height="200"></canvas></div>
+    <div class="roulette-num" id="rouletteNum">--</div>
+    <div style="font-size:0.55rem;color:var(--green3);letter-spacing:3px;margin:8px 0">MISE SUR UN NUMERO :</div>
+    <div class="bet-grid" id="rouletteNumberGrid"></div>
+    <div style="font-size:0.55rem;color:var(--green3);letter-spacing:3px;margin:8px 0">MISES SPECIALES :</div>
+    <div class="bet-grid-special">
+      <button class="bet-cell red-cell" data-btype="red" data-bval="red" onclick="rouletteSelectBet(this)">ROUGE x2</button>
+      <button class="bet-cell" data-btype="black" data-bval="black" onclick="rouletteSelectBet(this)">NOIR x2</button>
+      <button class="bet-cell" data-btype="even" data-bval="even" onclick="rouletteSelectBet(this)">PAIR x2</button>
+      <button class="bet-cell" data-btype="odd" data-bval="odd" onclick="rouletteSelectBet(this)">IMPAIR x2</button>
+      <button class="bet-cell" data-btype="low" data-bval="low" onclick="rouletteSelectBet(this)">1-18 x2</button>
+      <button class="bet-cell" data-btype="high" data-bval="high" onclick="rouletteSelectBet(this)">19-36 x2</button>
+      <button class="bet-cell" data-btype="dozen1" data-bval="dozen1" onclick="rouletteSelectBet(this)">1re DZ x3</button>
+      <button class="bet-cell" data-btype="dozen2" data-bval="dozen2" onclick="rouletteSelectBet(this)">2e DZ x3</button>
+      <button class="bet-cell" data-btype="dozen3" data-bval="dozen3" onclick="rouletteSelectBet(this)">3e DZ x3</button>
+      <button class="bet-cell" style="grid-column:span 3;font-size:0.55rem" id="rouletteBetDisplay">AUCUNE MISE SELECTIONNEE</button>
+    </div>
+    <div class="stake-row">
+      <input type="number" class="stake-input" id="rouletteStake" placeholder="mise en ARCH" min="0.000001" step="0.000001"/>
+      <button class="stake-max" onclick="setMax('rouletteStake')">MAX</button>
+    </div>
+    <div class="err-msg" id="rouletteErr"></div>
+    <button class="btn" id="rouletteBtn" onclick="playRoulette()">[ LANCER ]</button>
+    <div class="result-box" id="rouletteResult" style="display:none"></div>
+  </div>
+</div>
+
+<!-- MODAL PLINKO -->
+<div class="modal-overlay" id="modalPlinko">
+  <div class="modal" style="width:min(480px,98vw)">
+    <button class="modal-close" onclick="closeModal('modalPlinko')">&#10005;</button>
+    <div class="modal-title">&#8901; PLINKO</div>
+    <div class="modal-sub">LA BALLE REBONDIT &mdash; JUSQU'A x60</div>
+    <hr class="modal-hr">
+    <canvas id="plinkoCanvas" width="420" height="300"></canvas>
+    <div class="plinko-slots" id="plinkoSlotLabels"></div>
+    <div class="plinko-rows-row">
+      <span class="plinko-rows-label">RANGEES :</span>
+      <select class="mines-select" id="plinkoRows" onchange="plinkoDrawBoard()">
+        <option value="8">8</option><option value="12">12</option><option value="16">16</option>
+      </select>
+    </div>
+    <div class="stake-row">
+      <input type="number" class="stake-input" id="plinkoStake" placeholder="mise en ARCH" min="0.000001" step="0.000001"/>
+      <button class="stake-max" onclick="setMax('plinkoStake')">MAX</button>
+    </div>
+    <div class="err-msg" id="plinkoErr"></div>
+    <button class="btn" id="plinkoBtn" onclick="playPlinko()">[ LACHER ]</button>
+    <div class="result-box" id="plinkoResult" style="display:none"></div>
+  </div>
+</div>
+
+<!-- MODAL KENO -->
+<div class="modal-overlay" id="modalKeno">
+  <div class="modal" style="width:min(520px,98vw)">
+    <button class="modal-close" onclick="closeModal('modalKeno')">&#10005;</button>
+    <div class="modal-title">&#9632; KENO</div>
+    <div class="modal-sub">CHOISIS 1-10 NUMEROS &mdash; 20 TIRES AU SORT</div>
+    <hr class="modal-hr">
+    <div class="keno-info">
+      <span>SELECTIONNES : <span id="kenoPicks">0</span>/10</span>
+      <span>MAX : <span id="kenoMaxMult" style="color:var(--gold)">--</span>x</span>
+    </div>
+    <div class="keno-grid" id="kenoGrid"></div>
+    <div class="stake-row">
+      <input type="number" class="stake-input" id="kenoStake" placeholder="mise en ARCH" min="0.000001" step="0.000001"/>
+      <button class="stake-max" onclick="setMax('kenoStake')">MAX</button>
+    </div>
+    <div class="err-msg" id="kenoErr"></div>
+    <button class="btn keno-draw-btn" id="kenoBtn" onclick="playKeno()">[ TIRER ]</button>
+    <div class="result-box" id="kenoResult" style="display:none"></div>
+  </div>
+</div>
+
+<!-- MODAL VIDEO POKER -->
+<div class="modal-overlay" id="modalPoker">
+  <div class="modal" style="width:min(500px,98vw)">
+    <button class="modal-close" onclick="closeModal('modalPoker')">&#10005;</button>
+    <div class="modal-title">&#9827; VIDEO POKER</div>
+    <div class="modal-sub">5 CARTES &mdash; GARDE LES MEILLEURES &mdash; ROYALE x800</div>
+    <hr class="modal-hr">
+    <div class="poker-paytable">
+      <div class="ppt-row"><span>QUINTE ROYALE</span><span class="ppt-mult">x800</span></div>
+      <div class="ppt-row"><span>QUINTE FLUSH</span><span class="ppt-mult">x50</span></div>
+      <div class="ppt-row"><span>CARRÉ</span><span class="ppt-mult">x25</span></div>
+      <div class="ppt-row"><span>FULL HOUSE</span><span class="ppt-mult">x9</span></div>
+      <div class="ppt-row"><span>COULEUR</span><span class="ppt-mult">x6</span></div>
+      <div class="ppt-row"><span>QUINTE</span><span class="ppt-mult">x4</span></div>
+      <div class="ppt-row"><span>BRELAN</span><span class="ppt-mult">x3</span></div>
+      <div class="ppt-row"><span>DEUX PAIRES</span><span class="ppt-mult">x2</span></div>
+      <div class="ppt-row"><span>PAIRE J-A</span><span class="ppt-mult">x1</span></div>
+    </div>
+    <div id="pokerDealForm">
+      <div class="stake-row">
+        <input type="number" class="stake-input" id="pokerStake" placeholder="mise en ARCH" min="0.000001" step="0.000001"/>
+        <button class="stake-max" onclick="setMax('pokerStake')">MAX</button>
+      </div>
+      <div class="err-msg" id="pokerErr"></div>
+      <button class="btn" id="pokerDealBtn" onclick="pokerDeal()">[ DISTRIBUER ]</button>
+    </div>
+    <div id="pokerGame" style="display:none">
+      <div class="poker-hand-name" id="pokerHandName"></div>
+      <div class="poker-cards" id="pokerCards"></div>
+      <div style="font-size:0.55rem;color:var(--green3);letter-spacing:2px;text-align:center;margin:4px 0">CLIQUE POUR GARDER UNE CARTE</div>
+      <div class="err-msg" id="pokerGameErr"></div>
+      <button class="btn" id="pokerDrawBtn" onclick="pokerDraw()">[ TIRER LES CARTES NON GARDEES ]</button>
+    </div>
+    <div class="result-box" id="pokerResult" style="display:none"></div>
+    <button class="btn" id="pokerNewGame" style="display:none;margin-top:10px" onclick="pokerNewGame()">[ NOUVELLE PARTIE ]</button>
+  </div>
+</div>
+
+<!-- MODAL SCRATCH CARD -->
+<div class="modal-overlay" id="modalScratch">
+  <div class="modal" style="width:min(400px,98vw)">
+    <button class="modal-close" onclick="closeModal('modalScratch')">&#10005;</button>
+    <div class="modal-title">&#9670; SCRATCH CARD</div>
+    <div class="modal-sub">3 SYMBOLES IDENTIQUES = JACKPOT</div>
+    <hr class="modal-hr">
+    <div class="scratch-hint" id="scratchHint">GRATTE TOUTES LES CASES</div>
+    <div class="scratch-grid" id="scratchGrid"></div>
+    <div id="scratchDealForm">
+      <div class="stake-row">
+        <input type="number" class="stake-input" id="scratchStake" placeholder="mise en ARCH" min="0.000001" step="0.000001"/>
+        <button class="stake-max" onclick="setMax('scratchStake')">MAX</button>
+      </div>
+      <div class="err-msg" id="scratchErr"></div>
+      <button class="btn" id="scratchBuyBtn" onclick="playScratch()">[ ACHETER LA CARTE ]</button>
+    </div>
+    <div class="result-box" id="scratchResult" style="display:none"></div>
+    <button class="btn" id="scratchNewGame" style="display:none;margin-top:10px" onclick="scratchInit()">[ NOUVELLE CARTE ]</button>
+  </div>
+</div>
+
+<!-- MODAL TOWER -->
+<div class="modal-overlay" id="modalTower">
+  <div class="modal" style="width:min(420px,98vw)">
+    <button class="modal-close" onclick="closeModal('modalTower')">&#10005;</button>
+    <div class="modal-title">&#9650; TOWER</div>
+    <div class="modal-sub">8 NIVEAUX &mdash; 1 PIEGE PAR RANGEE &mdash; CASH OUT LIBRE</div>
+    <hr class="modal-hr">
+    <div class="tower-level-info">
+      <span>NIVEAU : <span id="towerLevel">--</span>/8</span>
+      <span>MULT ACTUEL : <span class="tower-mult" id="towerMult">--</span></span>
+    </div>
+    <div class="tower-grid" id="towerGrid"></div>
+    <div id="towerDealForm">
+      <div class="stake-row">
+        <input type="number" class="stake-input" id="towerStake" placeholder="mise en ARCH" min="0.000001" step="0.000001"/>
+        <button class="stake-max" onclick="setMax('towerStake')">MAX</button>
+      </div>
+      <div class="err-msg" id="towerErr"></div>
+      <button class="btn" id="towerStartBtn" onclick="towerStart()">[ COMMENCER ]</button>
+    </div>
+    <div id="towerGame" style="display:none">
+      <button class="btn btn-gold" id="towerCashoutBtn" onclick="towerCashout()" style="margin-top:8px">[ CASH OUT ]</button>
+    </div>
+    <div class="result-box" id="towerResult" style="display:none"></div>
+    <button class="btn" id="towerNewGame" style="display:none;margin-top:10px" onclick="towerInit()">[ NOUVELLE PARTIE ]</button>
+  </div>
+</div>
+
 <script>
 const ARCH_API = 'https://arch-production.up.railway.app';
 let token    = localStorage.getItem('hub_token') || '';
@@ -615,10 +893,15 @@ if(token){archFetch('/api/me').then(d=>{if(d.username){username=d.username;showH
 
 function setMax(id){if(balance>0)document.getElementById(id).value=balance.toFixed(6);}
 
-const resultMap={coinflip:'cfResult',dice:'diceResult',slots:'slotsResult',blackjack:'bjResult',mines:'minesResult',crash:'crashResult'};
+const resultMap={coinflip:'cfResult',dice:'diceResult',slots:'slotsResult',blackjack:'bjResult',mines:'minesResult',crash:'crashResult',roulette:'rouletteResult',plinko:'plinkoResult',keno:'kenoResult',poker:'pokerResult',scratch:'scratchResult',tower:'towerResult'};
 function openGame(game){
-  document.getElementById('modal'+game.charAt(0).toUpperCase()+game.slice(1)).classList.add('open');
+  const modalId='modal'+game.charAt(0).toUpperCase()+game.slice(1);
+  document.getElementById(modalId).classList.add('open');
   const el=document.getElementById(resultMap[game]);if(el)el.style.display='none';
+  if(game==='scratch')scratchInit();
+  if(game==='tower')towerInit();
+  if(game==='keno')kenoInit();
+  if(game==='plinko')plinkoDrawBoard();
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');refreshBalance();}
 
@@ -1172,7 +1455,492 @@ function minesNewGame(){
   refreshBalance();
 }
 
-// ════ CRASH ════
+// ════ ROULETTE ════
+const REDS=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+let rouletteBetType=null,rouletteBetVal=null;
+
+(function initRouletteGrid(){
+  const g=document.getElementById('rouletteNumberGrid');
+  for(let i=0;i<=36;i++){
+    const btn=document.createElement('button');
+    btn.className='bet-cell'+(REDS.includes(i)?' red-cell':'');
+    btn.dataset.btype='number';btn.dataset.bval=i;
+    btn.textContent=i;btn.onclick=function(){rouletteSelectBet(this);};
+    g.appendChild(btn);
+  }
+  drawRouletteWheel(0);
+})();
+
+function rouletteSelectBet(el){
+  document.querySelectorAll('.bet-cell.selected').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  rouletteBetType=el.dataset.btype;rouletteBetVal=el.dataset.bval;
+  document.getElementById('rouletteBetDisplay').textContent='MISE : '+(rouletteBetType==='number'?'N°'+rouletteBetVal:rouletteBetVal.toUpperCase());
+}
+
+function drawRouletteWheel(angle){
+  const cv=document.getElementById('rouletteCanvas'),ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,cx=W/2,cy=H/2,r=Math.min(W,H)/2-6;
+  const nums=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+  const seg=Math.PI*2/nums.length;
+  ctx.clearRect(0,0,W,H);
+  nums.forEach((n,i)=>{
+    const a=angle+i*seg,ea=a+seg;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,ea);ctx.closePath();
+    ctx.fillStyle=n===0?'#1a1200':REDS.includes(n)?'#1a0000':'#0a0a0a';
+    ctx.fill();ctx.strokeStyle='#00ff4133';ctx.lineWidth=0.8;ctx.stroke();
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(angle+i*seg+seg/2);
+    ctx.textAlign='right';ctx.font='bold 9px monospace';
+    ctx.fillStyle=n===0?'#ffe066':REDS.includes(n)?'#ff5566':'#00ff41';
+    ctx.fillText(n,r-5,3);ctx.restore();
+  });
+  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);ctx.fillStyle='#00ff41';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fillStyle='#000';ctx.fill();
+  // Aiguille
+  ctx.beginPath();ctx.moveTo(cx,6);ctx.lineTo(cx-5,18);ctx.lineTo(cx+5,18);ctx.closePath();
+  ctx.fillStyle='var(--red)';ctx.fill();
+}
+
+async function playRoulette(){
+  const sv=parseFloat(document.getElementById('rouletteStake').value);
+  const errEl=document.getElementById('rouletteErr'),resEl=document.getElementById('rouletteResult'),btn=document.getElementById('rouletteBtn');
+  errEl.textContent='';resEl.style.display='none';
+  if(!rouletteBetType){errEl.textContent='Choisis une mise.';return;}
+  if(isNaN(sv)||sv<=0){errEl.textContent='Mise invalide.';return;}
+  if(sv>balance){errEl.textContent='Solde insuffisant.';return;}
+  btn.disabled=true;
+  const numEl=document.getElementById('rouletteNum');numEl.textContent='...';numEl.className='roulette-num';
+  // Animate wheel
+  const totalRot=Math.PI*2*(6+Math.random()*4);
+  const dur=3500,start=performance.now();
+  await new Promise(resolve=>{
+    function frame(now){
+      const p=Math.min((now-start)/dur,1),e=1-Math.pow(1-p,3);
+      drawRouletteWheel(e*totalRot);
+      if(p<1)requestAnimationFrame(frame);else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
+  const data=await archFetch('/api/game/roulette',{method:'POST',body:JSON.stringify({betType:rouletteBetType,betValue:rouletteBetVal,amount:sv})});
+  if(!data.ok){errEl.textContent=data.error||'Erreur.';btn.disabled=false;return;}
+  const{spin,isRed,mult,gain}=data;
+  const isZero=spin===0;
+  numEl.textContent=spin;numEl.className='roulette-num '+(isZero?'zero':isRed?'red':'black');
+  balance=data.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  const won=mult>0;
+  if(won){
+    const profit=parseFloat((gain-sv).toFixed(6));
+    totalWins+=gain;document.getElementById('walletWins').textContent='+'+totalWins.toFixed(6)+' ARCH';
+    resEl.className='result-box result-win';resEl.innerHTML=`&#10003; ${spin} &mdash; x${mult}<div class="result-amount">+${profit.toFixed(6)} ARCH</div>`;
+    addHist(`ROULETTE \u2014 ${spin} \u2014 +${profit.toFixed(6)} ARCH`,'hist-win');
+    burst('+'+profit.toFixed(6)+' ARCH',window.innerWidth/2,300,profit>=1?'big':'win');
+  }else{
+    totalLosses+=sv;document.getElementById('walletLosses').textContent='-'+totalLosses.toFixed(6)+' ARCH';
+    resEl.className='result-box result-lose';resEl.innerHTML=`&#10007; ${spin} &mdash; PERDU<div class="result-amount">-${sv.toFixed(6)} ARCH</div>`;
+    addHist(`ROULETTE \u2014 ${spin} \u2014 -${sv.toFixed(6)} ARCH`,'hist-lose');
+    burst('-'+sv.toFixed(6),window.innerWidth/2,300,'lose');
+  }
+  resEl.style.display='block';btn.disabled=false;
+}
+
+// ════ PLINKO ════
+const PLINKO_MULTS={8:[10,3,1.4,0.4,0.2,0.4,1.4,3,10],12:[20,6,2.5,1.1,0.5,0.2,0.2,0.5,1.1,2.5,6,20],16:[60,18,7,2.5,1.2,0.5,0.3,0.2,0.2,0.3,0.5,1.2,2.5,7,18,60]};
+
+function plinkoDrawBoard(animPath,slot){
+  const cv=document.getElementById('plinkoCanvas');
+  const rows=parseInt(document.getElementById('plinkoRows').value)||8;
+  const mults=PLINKO_MULTS[rows]||PLINKO_MULTS[8];
+  const slots=mults.length;
+  const W=cv.width,H=cv.height;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const topPad=20,botPad=40,sidePad=20;
+  const usableH=H-topPad-botPad;
+  const usableW=W-sidePad*2;
+  // Draw pegs
+  for(let r=0;r<rows;r++){
+    const pegsInRow=r+2;
+    const y=topPad+((r+1)/(rows+1))*usableH;
+    for(let p=0;p<pegsInRow;p++){
+      const x=sidePad+usableW*(p+0.5*(rows-r))/(rows+1);
+      ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);
+      ctx.fillStyle='#00ff4155';ctx.fill();
+    }
+  }
+  // Draw slot multipliers at bottom
+  const labEl=document.getElementById('plinkoSlotLabels');
+  labEl.innerHTML='';
+  mults.forEach(m=>{
+    const big=m>=10;const sp=document.createElement('span');
+    sp.textContent=m+'x';sp.style.color=big?'var(--gold)':m>=1?'var(--green)':'var(--green3)';
+    labEl.appendChild(sp);
+  });
+  // Highlight slot if provided
+  if(animPath&&slot!==undefined){
+    const slotX=sidePad+usableW*(slot+0.5)/(slots-1);
+    ctx.beginPath();ctx.arc(slotX,H-botPad/2,10,0,Math.PI*2);
+    ctx.fillStyle=mults[slot]>=1?'#00ff4188':'#00ff4133';ctx.fill();
+    ctx.strokeStyle='var(--green)';ctx.lineWidth=1.5;ctx.stroke();
+    // Draw path
+    let bx=W/2,by=topPad;
+    ctx.beginPath();ctx.moveTo(bx,by);ctx.strokeStyle='#00ff4166';ctx.lineWidth=1.5;
+    animPath.forEach((dir,r)=>{
+      const pegsInRow=r+2;
+      const y=topPad+((r+1)/(rows+1))*usableH;
+      const pegIdx=Math.floor((bx-sidePad)/usableW*(rows+1)-0.5*(rows-r));
+      const newPegIdx=pegIdx+dir;
+      const nx=sidePad+usableW*(newPegIdx+0.5*(rows-r))/(rows+1);
+      ctx.lineTo(nx,y);bx=nx;
+    });
+    ctx.lineTo(slotX,H-botPad/2);ctx.stroke();
+  }
+}
+
+async function playPlinko(){
+  const sv=parseFloat(document.getElementById('plinkoStake').value);
+  const rows=parseInt(document.getElementById('plinkoRows').value)||8;
+  const errEl=document.getElementById('plinkoErr'),resEl=document.getElementById('plinkoResult'),btn=document.getElementById('plinkoBtn');
+  errEl.textContent='';resEl.style.display='none';
+  if(isNaN(sv)||sv<=0){errEl.textContent='Mise invalide.';return;}
+  if(sv>balance){errEl.textContent='Solde insuffisant.';return;}
+  btn.disabled=true;
+  const data=await archFetch('/api/game/plinko',{method:'POST',body:JSON.stringify({amount:sv,rows})});
+  if(!data.ok){errEl.textContent=data.error||'Erreur.';btn.disabled=false;return;}
+  plinkoDrawBoard(data.path,data.slot);
+  balance=data.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  const profit=parseFloat((data.gain-sv).toFixed(6));
+  if(data.mult>0&&data.gain>sv){
+    totalWins+=data.gain;document.getElementById('walletWins').textContent='+'+totalWins.toFixed(6)+' ARCH';
+    resEl.className='result-box result-win';resEl.innerHTML=`&#10003; SLOT ${data.slot} &mdash; x${data.mult}<div class="result-amount">+${profit.toFixed(6)} ARCH</div>`;
+    addHist(`PLINKO \u2014 x${data.mult} \u2014 +${profit.toFixed(6)} ARCH`,'hist-win');
+    burst('+'+profit.toFixed(6)+' ARCH',window.innerWidth/2,300,profit>=1?'big':'win');
+  }else if(data.gain===sv){
+    resEl.className='result-box result-push';resEl.innerHTML=`\u2014 x${data.mult} &mdash; REMBOURSÉ<div class="result-amount">0 ARCH</div>`;
+  }else{
+    const loss=parseFloat((sv-data.gain).toFixed(6));
+    totalLosses+=loss;document.getElementById('walletLosses').textContent='-'+totalLosses.toFixed(6)+' ARCH';
+    resEl.className='result-box result-lose';resEl.innerHTML=`&#10007; SLOT ${data.slot} &mdash; x${data.mult}<div class="result-amount">-${loss.toFixed(6)} ARCH</div>`;
+    addHist(`PLINKO \u2014 x${data.mult} \u2014 -${loss.toFixed(6)} ARCH`,'hist-lose');
+    burst('-'+loss.toFixed(6),window.innerWidth/2,300,'lose');
+  }
+  resEl.style.display='block';btn.disabled=false;
+}
+
+// ════ KENO ════
+let kenoPicked=new Set();
+const KENO_MAX_MULTS={1:3.8,2:9,3:27,4:55,5:120,6:300,7:750,8:2000,9:5000,10:10000};
+
+function kenoInit(){
+  kenoPicked=new Set();
+  const g=document.getElementById('kenoGrid');g.innerHTML='';
+  document.getElementById('kenoResult').style.display='none';
+  document.getElementById('kenoPicks').textContent='0';
+  document.getElementById('kenoMaxMult').textContent='--';
+  for(let i=1;i<=80;i++){
+    const cell=document.createElement('div');cell.className='keno-cell';cell.textContent=i;
+    cell.onclick=()=>kenoPick(i,cell);
+    g.appendChild(cell);
+  }
+  document.getElementById('kenoErr').textContent='';
+  document.getElementById('kenoBtn').disabled=false;
+}
+
+function kenoPick(n,el){
+  if(kenoPicked.has(n)){kenoPicked.delete(n);el.classList.remove('picked');}
+  else if(kenoPicked.size<10){kenoPicked.add(n);el.classList.add('picked');}
+  document.getElementById('kenoPicks').textContent=kenoPicked.size;
+  document.getElementById('kenoMaxMult').textContent=KENO_MAX_MULTS[kenoPicked.size]||'--';
+}
+
+async function playKeno(){
+  const sv=parseFloat(document.getElementById('kenoStake').value);
+  const errEl=document.getElementById('kenoErr'),resEl=document.getElementById('kenoResult'),btn=document.getElementById('kenoBtn');
+  errEl.textContent='';resEl.style.display='none';
+  if(kenoPicked.size===0){errEl.textContent='Choisis au moins 1 numéro.';return;}
+  if(isNaN(sv)||sv<=0){errEl.textContent='Mise invalide.';return;}
+  if(sv>balance){errEl.textContent='Solde insuffisant.';return;}
+  btn.disabled=true;
+  const data=await archFetch('/api/game/keno',{method:'POST',body:JSON.stringify({amount:sv,picks:[...kenoPicked]})});
+  if(!data.ok){errEl.textContent=data.error||'Erreur.';btn.disabled=false;return;}
+  // Animate drawn numbers
+  const cells=document.querySelectorAll('.keno-cell');
+  cells.forEach(c=>c.classList.remove('drawn','hit'));
+  let i=0;
+  await new Promise(resolve=>{
+    function drawNext(){
+      if(i>=data.drawn.length){resolve();return;}
+      const n=data.drawn[i++];
+      const cell=document.querySelector(`.keno-cell:nth-child(${n})`);
+      if(cell){cell.classList.add(kenoPicked.has(n)?'hit':'drawn');}
+      setTimeout(drawNext,60);
+    }
+    drawNext();
+  });
+  balance=data.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  const profit=parseFloat((data.gain-sv).toFixed(6));
+  if(data.mult>0&&data.gain>0){
+    totalWins+=data.gain;document.getElementById('walletWins').textContent='+'+totalWins.toFixed(6)+' ARCH';
+    resEl.className='result-box result-win';resEl.innerHTML=`&#10003; ${data.hits}/${kenoPicked.size} HITS &mdash; x${data.mult}<div class="result-amount">+${profit.toFixed(6)} ARCH</div>`;
+    addHist(`KENO \u2014 ${data.hits} hits x${data.mult} \u2014 +${profit.toFixed(6)} ARCH`,'hist-win');
+    burst('+'+profit.toFixed(6)+' ARCH',window.innerWidth/2,300,profit>=1?'big':'win');
+  }else{
+    totalLosses+=sv;document.getElementById('walletLosses').textContent='-'+totalLosses.toFixed(6)+' ARCH';
+    resEl.className='result-box result-lose';resEl.innerHTML=`&#10007; ${data.hits}/${kenoPicked.size} HITS<div class="result-amount">-${sv.toFixed(6)} ARCH</div>`;
+    addHist(`KENO \u2014 ${data.hits} hits \u2014 -${sv.toFixed(6)} ARCH`,'hist-lose');
+    burst('-'+sv.toFixed(6),window.innerWidth/2,300,'lose');
+  }
+  resEl.style.display='block';btn.disabled=false;
+}
+
+// ════ VIDEO POKER ════
+let pokerState=null;
+let pokerHeld=new Set();
+
+function pokerCardHTML(card,idx){
+  const r=card.s==='♥'||card.s==='♦';
+  const h=pokerHeld.has(idx);
+  return`<div class="poker-card${r?' red':''}${h?' held':''}" onclick="pokerToggleHold(${idx})"><div class="cv">${card.v}</div><div class="cs">${card.s}</div>${h?'<div class="poker-held-label">GARDE</div>':''}</div>`;
+}
+
+function pokerToggleHold(i){
+  if(!pokerState)return;
+  if(pokerHeld.has(i))pokerHeld.delete(i);else pokerHeld.add(i);
+  document.getElementById('pokerCards').innerHTML=pokerState.hand.map((c,idx)=>pokerCardHTML(c,idx)).join('');
+}
+
+async function pokerDeal(){
+  const sv=parseFloat(document.getElementById('pokerStake').value);
+  const errEl=document.getElementById('pokerErr');errEl.textContent='';
+  if(isNaN(sv)||sv<=0){errEl.textContent='Mise invalide.';return;}
+  if(sv>balance){errEl.textContent='Solde insuffisant.';return;}
+  document.getElementById('pokerDealBtn').disabled=true;
+  const d=await archFetch('/api/game/poker',{method:'POST',body:JSON.stringify({action:'deal',amount:sv})});
+  document.getElementById('pokerDealBtn').disabled=false;
+  if(!d.ok){errEl.textContent=d.error||'Erreur.';return;}
+  balance=d.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  pokerState={hand:d.hand,deck:d.deck,bet:sv};pokerHeld=new Set();
+  document.getElementById('pokerDealForm').style.display='none';
+  document.getElementById('pokerGame').style.display='';
+  document.getElementById('pokerResult').style.display='none';
+  document.getElementById('pokerNewGame').style.display='none';
+  document.getElementById('pokerCards').innerHTML=d.hand.map((c,i)=>pokerCardHTML(c,i)).join('');
+  document.getElementById('pokerHandName').textContent='';
+}
+
+async function pokerDraw(){
+  if(!pokerState)return;
+  document.getElementById('pokerDrawBtn').disabled=true;
+  const d=await archFetch('/api/game/poker',{method:'POST',body:JSON.stringify({action:'draw',held:[...pokerHeld],gameState:{hand:pokerState.hand,deck:pokerState.deck,bet:pokerState.bet}})});
+  if(!d.ok){document.getElementById('pokerGameErr').textContent=d.error||'Erreur.';document.getElementById('pokerDrawBtn').disabled=false;return;}
+  pokerHeld=new Set([...Array(5).keys()]);
+  pokerState.hand=d.hand;
+  document.getElementById('pokerCards').innerHTML=d.hand.map((c,i)=>pokerCardHTML(c,i)).join('');
+  document.getElementById('pokerHandName').textContent=d.result.name;
+  balance=d.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  const resEl=document.getElementById('pokerResult');
+  const profit=parseFloat((d.gain-pokerState.bet).toFixed(6));
+  if(d.result.mult>0){
+    totalWins+=d.gain;document.getElementById('walletWins').textContent='+'+totalWins.toFixed(6)+' ARCH';
+    resEl.className='result-box result-win';resEl.innerHTML=`&#10003; ${d.result.name} &mdash; x${d.result.mult}<div class="result-amount">+${profit.toFixed(6)} ARCH</div>`;
+    addHist(`POKER \u2014 ${d.result.name} \u2014 +${profit.toFixed(6)} ARCH`,'hist-win');
+    burst('+'+profit.toFixed(6)+' ARCH',window.innerWidth/2,300,profit>=1?'big':'win');
+  }else{
+    totalLosses+=pokerState.bet;document.getElementById('walletLosses').textContent='-'+totalLosses.toFixed(6)+' ARCH';
+    resEl.className='result-box result-lose';resEl.innerHTML=`&#10007; ${d.result.name}<div class="result-amount">-${pokerState.bet.toFixed(6)} ARCH</div>`;
+    addHist(`POKER \u2014 ${d.result.name} \u2014 -${pokerState.bet.toFixed(6)} ARCH`,'hist-lose');
+    burst('-'+pokerState.bet.toFixed(6),window.innerWidth/2,300,'lose');
+  }
+  resEl.style.display='block';document.getElementById('pokerGame').style.display='none';
+  document.getElementById('pokerNewGame').style.display='';pokerState=null;
+}
+
+function pokerNewGame(){
+  pokerHeld=new Set();pokerState=null;
+  document.getElementById('pokerDealForm').style.display='';document.getElementById('pokerGame').style.display='none';
+  document.getElementById('pokerResult').style.display='none';document.getElementById('pokerNewGame').style.display='none';
+  document.getElementById('pokerCards').innerHTML='';document.getElementById('pokerHandName').textContent='';
+  document.getElementById('pokerErr').textContent='';document.getElementById('pokerDealBtn').disabled=false;
+  refreshBalance();
+}
+
+// ════ SCRATCH CARD ════
+let scratchData=null;
+const SCRATCH_SYMS=['◈','◆','★','▲','●','■'];
+const SCRATCH_MULTS=[50,20,10,5,2.5,1.5];
+
+function scratchInit(){
+  scratchData=null;
+  const g=document.getElementById('scratchGrid');g.innerHTML='';
+  document.getElementById('scratchResult').style.display='none';
+  document.getElementById('scratchNewGame').style.display='none';
+  document.getElementById('scratchDealForm').style.display='';
+  document.getElementById('scratchBuyBtn').disabled=false;
+  document.getElementById('scratchErr').textContent='';
+  document.getElementById('scratchHint').textContent='GRATTE TOUTES LES CASES';
+  for(let i=0;i<9;i++){
+    const cell=document.createElement('div');cell.className='scratch-cell';cell.dataset.idx=i;
+    const cover=document.createElement('div');cover.className='scratch-cover';cover.textContent='GRATTE';
+    cell.appendChild(cover);cell.onclick=()=>scratchReveal(i);
+    g.appendChild(cell);
+  }
+}
+
+function scratchReveal(idx){
+  if(!scratchData)return;
+  const cell=document.querySelector(`.scratch-cell[data-idx="${idx}"]`);
+  if(!cell||cell.classList.contains('scratched'))return;
+  cell.classList.add('scratched');
+  const symIdx=scratchData.gridIdx[idx];
+  cell.innerHTML=`<span style="font-size:1.8rem">${SCRATCH_SYMS[symIdx]}</span>`;
+  if(scratchData.winSym>=0&&symIdx===scratchData.winSym)cell.classList.add('winner');
+  // Check if all scratched
+  const allDone=document.querySelectorAll('.scratch-cell:not(.scratched)').length===0;
+  if(allDone){
+    const resEl=document.getElementById('scratchResult');
+    if(scratchData.mult>0){
+      const profit=parseFloat((scratchData.gain-scratchData.bet).toFixed(6));
+      resEl.className='result-box result-win';
+      resEl.innerHTML=`&#10003; ${SCRATCH_SYMS[scratchData.winSym]} x3 &mdash; x${scratchData.mult}<div class="result-amount">+${profit.toFixed(6)} ARCH</div>`;
+    }else{
+      resEl.className='result-box result-lose';
+      resEl.innerHTML=`&#10007; AUCUNE COMBINAISON<div class="result-amount">-${scratchData.bet.toFixed(6)} ARCH</div>`;
+    }
+    resEl.style.display='block';document.getElementById('scratchNewGame').style.display='';
+  }
+}
+
+async function playScratch(){
+  const sv=parseFloat(document.getElementById('scratchStake').value);
+  const errEl=document.getElementById('scratchErr'),btn=document.getElementById('scratchBuyBtn');
+  errEl.textContent='';
+  if(isNaN(sv)||sv<=0){errEl.textContent='Mise invalide.';return;}
+  if(sv>balance){errEl.textContent='Solde insuffisant.';return;}
+  btn.disabled=true;
+  const d=await archFetch('/api/game/scratch',{method:'POST',body:JSON.stringify({amount:sv})});
+  if(!d.ok){errEl.textContent=d.error||'Erreur.';btn.disabled=false;return;}
+  balance=d.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  scratchData={gridIdx:d.gridIdx,winSym:d.winSym,mult:d.mult,gain:d.gain,bet:sv};
+  document.getElementById('scratchDealForm').style.display='none';
+  document.getElementById('scratchHint').textContent='GRATTE LES CASES !';
+  if(d.mult>0){
+    const profit=parseFloat((d.gain-sv).toFixed(6));
+    totalWins+=d.gain;document.getElementById('walletWins').textContent='+'+totalWins.toFixed(6)+' ARCH';
+    addHist(`SCRATCH \u2014 x${d.mult} \u2014 +${profit.toFixed(6)} ARCH`,'hist-win');
+  }else{
+    totalLosses+=sv;document.getElementById('walletLosses').textContent='-'+totalLosses.toFixed(6)+' ARCH';
+    addHist(`SCRATCH \u2014 -${sv.toFixed(6)} ARCH`,'hist-lose');
+  }
+}
+
+// ════ TOWER ════
+const TOWER_MULTS=[1.4,2,2.8,4,5.5,8,12,20];
+let towerState=null;
+
+function towerInit(){
+  towerState=null;
+  document.getElementById('towerResult').style.display='none';
+  document.getElementById('towerNewGame').style.display='none';
+  document.getElementById('towerDealForm').style.display='';
+  document.getElementById('towerGame').style.display='none';
+  document.getElementById('towerErr').textContent='';
+  document.getElementById('towerStartBtn').disabled=false;
+  document.getElementById('towerLevel').textContent='--';
+  document.getElementById('towerMult').textContent='--';
+  const g=document.getElementById('towerGrid');g.innerHTML='';
+  for(let lvl=7;lvl>=0;lvl--){
+    const row=document.createElement('div');row.className='tower-row';row.id='towerRow'+lvl;
+    for(let t=0;t<3;t++){
+      const tile=document.createElement('div');
+      tile.className='tower-tile disabled';
+      tile.textContent='?';tile.dataset.lvl=lvl;tile.dataset.tile=t;
+      row.appendChild(tile);
+    }
+    g.appendChild(row);
+  }
+}
+
+async function towerStart(){
+  const sv=parseFloat(document.getElementById('towerStake').value);
+  const errEl=document.getElementById('towerErr');errEl.textContent='';
+  if(isNaN(sv)||sv<=0){errEl.textContent='Mise invalide.';return;}
+  if(sv>balance){errEl.textContent='Solde insuffisant.';return;}
+  document.getElementById('towerStartBtn').disabled=true;
+  const d=await archFetch('/api/game/tower',{method:'POST',body:JSON.stringify({action:'start',amount:sv})});
+  if(!d.ok){errEl.textContent=d.error||'Erreur.';document.getElementById('towerStartBtn').disabled=false;return;}
+  balance=d.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  towerState={traps:d.traps,bet:sv,level:0};
+  document.getElementById('towerDealForm').style.display='none';
+  document.getElementById('towerGame').style.display='';
+  document.getElementById('towerLevel').textContent='0';
+  document.getElementById('towerMult').textContent='--';
+  towerActivateRow(0);
+}
+
+function towerActivateRow(lvl){
+  // Deactivate all
+  document.querySelectorAll('.tower-tile').forEach(t=>{t.className='tower-tile disabled';t.textContent='?';t.onclick=null;});
+  if(lvl>=8)return;
+  const row=document.getElementById('towerRow'+lvl);
+  if(!row)return;
+  row.querySelectorAll('.tower-tile').forEach((tile,t)=>{
+    tile.className='tower-tile active-row';
+    tile.onclick=()=>towerStep(lvl,t);
+  });
+}
+
+async function towerStep(lvl,choice){
+  if(!towerState)return;
+  document.querySelectorAll('.tower-tile').forEach(t=>t.onclick=null);
+  const d=await archFetch('/api/game/tower',{method:'POST',body:JSON.stringify({action:'step',level:lvl,choice,towerState:{traps:towerState.traps,bet:towerState.bet}})});
+  const row=document.getElementById('towerRow'+lvl);
+  if(!row)return;
+  const tiles=row.querySelectorAll('.tower-tile');
+  // Reveal trap
+  tiles[towerState.traps[lvl]].classList.add('trap');tiles[towerState.traps[lvl]].textContent='💣';
+  if(d.hit){
+    tiles[choice].classList.add('trap');
+    const resEl=document.getElementById('towerResult');
+    resEl.className='result-box result-lose';
+    resEl.innerHTML=`\uD83D\uDCA5 PIEGE AU NIVEAU ${lvl+1}<div class="result-amount">-${towerState.bet.toFixed(6)} ARCH</div>`;
+    resEl.style.display='block';
+    totalLosses+=towerState.bet;document.getElementById('walletLosses').textContent='-'+totalLosses.toFixed(6)+' ARCH';
+    addHist(`TOWER \u2014 niveau ${lvl+1} \u2014 -${towerState.bet.toFixed(6)} ARCH`,'hist-lose');
+    burst('-'+towerState.bet.toFixed(6),window.innerWidth/2,300,'lose');
+    document.getElementById('towerGame').style.display='none';document.getElementById('towerNewGame').style.display='';
+    towerState=null;return;
+  }
+  tiles[choice].classList.remove('active-row');tiles[choice].classList.add('safe');tiles[choice].textContent='✓';
+  towerState.level=lvl+1;
+  document.getElementById('towerLevel').textContent=towerState.level;
+  document.getElementById('towerMult').textContent=TOWER_MULTS[lvl].toFixed(1)+'x';
+  // Mark row as cleared
+  tiles.forEach(t=>{if(!t.classList.contains('safe')&&!t.classList.contains('trap')){t.className='tower-tile cleared';t.textContent='·';}});
+  if(d.cleared){
+    // Max level
+    await towerCashout();return;
+  }
+  towerActivateRow(lvl+1);
+  balance=d.balance||balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+}
+
+async function towerCashout(){
+  if(!towerState||towerState.level===0)return;
+  document.getElementById('towerCashoutBtn').disabled=true;
+  const d=await archFetch('/api/game/tower',{method:'POST',body:JSON.stringify({action:'cashout',towerState:{bet:towerState.bet,level:towerState.level}})});
+  if(!d.ok)return;
+  balance=d.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
+  const profit=parseFloat((d.gain-towerState.bet).toFixed(6));
+  totalWins+=d.gain;document.getElementById('walletWins').textContent='+'+totalWins.toFixed(6)+' ARCH';
+  const resEl=document.getElementById('towerResult');
+  resEl.className='result-box result-win';
+  resEl.innerHTML=`&#10003; NIVEAU ${towerState.level}/8 &mdash; x${d.mult}<div class="result-amount">+${profit.toFixed(6)} ARCH</div>`;
+  resEl.style.display='block';
+  addHist(`TOWER \u2014 lvl ${towerState.level} x${d.mult} \u2014 +${profit.toFixed(6)} ARCH`,'hist-win');
+  burst('+'+profit.toFixed(6)+' ARCH',window.innerWidth/2,300,profit>=1?'big':'win');
+  document.getElementById('towerGame').style.display='none';document.getElementById('towerNewGame').style.display='';
+  towerState=null;
+}
+
 async function playCrash(){
   const sv=parseFloat(document.getElementById('crashStake').value),tv=parseFloat(document.getElementById('crashTarget').value);
   const errEl=document.getElementById('crashErr'),resEl=document.getElementById('crashResult'),btn=document.getElementById('crashBtn');
