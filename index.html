@@ -446,12 +446,14 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
       </div>
 
       <!-- Stats -->
-      <div class="panel">
+      <div class="panel" style="grid-column:1/-1;text-align:center">
         <div class="panel-lbl">◈ statistiques</div>
-        <div class="stat-row"><span class="stat-lbl">Scans</span><span class="stat-val" id="sScans">0</span></div>
-        <div class="stat-row"><span class="stat-lbl">Claims</span><span class="stat-val" id="sClaims">0</span></div>
-        <div class="stat-row"><span class="stat-lbl">Total miné</span><span class="stat-val" id="sEarned">0.000000</span></div>
-        <div class="stat-row"><span class="stat-lbl">Prochain scan</span><span class="stat-val" id="sNext">—</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:30px;justify-items:center">
+          <div><div class="stat-lbl">Scans</div><span class="stat-val" id="sScans">0</span></div>
+          <div><div class="stat-lbl">Claims</div><span class="stat-val" id="sClaims">0</span></div>
+          <div><div class="stat-lbl">Total miné</div><span class="stat-val" id="sEarned">0.000000</span></div>
+          <div><div class="stat-lbl">Prochain scan</div><span class="stat-val" id="sNext">—</span></div>
+        </div>
       </div>
 
       <!-- Log -->
