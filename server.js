@@ -1162,38 +1162,20 @@ const server = http.createServer(async (req, res) => {
 
   // Activity Discord — sert activity.html avec CLIENT_ID et SERVER_URL injectés
   if (req.url === '/activity' || req.url === '/activity/') {
-    // Essayer plusieurs chemins possibles pour activity.html
-    const possiblePaths = [
-      './activity.html',
-      'activity.html',
-      path.join(__dirname, 'activity.html'),
-      path.join(process.cwd(), 'activity.html'),
-    ];
-    
-    let filePath = null;
-    for (let p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        filePath = p;
-        break;
-      }
-    }
-    
-    if (!filePath) {
-      res.writeHead(404);
-      return res.end('activity.html introuvable. Cherché: ' + possiblePaths.join(', '));
-    }
-    
-    fs.readFile(filePath, 'utf8', (err, data) => {
-      if (err) { res.writeHead(404); return res.end('Erreur lecture: ' + err.message); }
-      // Déterminer l'URL du serveur depuis l'header Host
+    fs.readFile('./activity.html', 'utf8', (err, data) => {
+      if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
+      
+      // Déterminer l'URL du serveur
       const host = req.headers.host;
-      const proto = req.headers['x-forwarded-proto'] || 'http';
+      const proto = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http');
       const serverUrl = `${proto}://${host}`;
       
+      // Injecter CLIENT_ID et SERVER_URL
       let injected = data
         .replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId)
         .replace('__SERVER_URL__', serverUrl);
-      res.writeHead(200, { 'Content-Type': 'text/html' });
+      
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(injected);
     });
     return;
