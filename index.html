@@ -401,7 +401,10 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   <div id="gameUI">
     <div class="topbar">
       <div>NODE : <span class="user-tag" id="topUser">—</span></div>
-      <button class="btn-xs" onclick="logout()">DÉCONNEXION</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-xs" onclick="window.location.href='/hub.html'" style="border-color:#00ff4166;color:#00ff41;">🎮 GAME HUB</button>
+        <button class="btn-xs" onclick="logout()">DÉCONNEXION</button>
+      </div>
     </div>
 
     <div class="grid">
@@ -513,7 +516,7 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 // ═══════════════════════════════════════════
 //  APP
 // ═══════════════════════════════════════════
-const SERVER = 'https://arch-production.up.railway.app';
+const SERVER = '';
 const SCAN_INTERVAL = 60;
 
 let token    = localStorage.getItem('arch_token') || null;

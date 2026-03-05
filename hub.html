@@ -253,6 +253,30 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   100% { opacity: 0; transform: translateY(-90px) scale(1.4); }
 }
 
+/* SLOT MACHINE */
+.reels-wrap {
+  display: flex; justify-content: center; gap: 8px; margin: 16px 0;
+}
+.reel {
+  width: 70px; height: 80px; border: 1px solid var(--green4);
+  background: #000; display: flex; align-items: center; justify-content: center;
+  font-size: 2.4rem; position: relative; overflow: hidden;
+  transition: border-color 0.3s;
+}
+.reel.spinning-reel { border-color: var(--green3); }
+.reel.win-reel { border-color: var(--green); box-shadow: 0 0 16px var(--dim); }
+.reel.jackpot-reel { border-color: var(--gold); box-shadow: 0 0 20px #ffe06688; }
+.reel-sym { transition: transform 0.1s; }
+.reel.spinning-reel .reel-sym { animation: reelSpin 0.08s steps(1) infinite; }
+@keyframes reelSpin { 50% { opacity: 0.3; } }
+
+.slot-paytable {
+  font-size: 0.55rem; color: var(--green3); line-height: 2;
+  border: 1px solid var(--green4); padding: 10px 14px; margin: 10px 0; letter-spacing: 1px;
+}
+.slot-paytable span { color: var(--green); }
+.slot-paytable .jackpot-line { color: var(--gold); }
+
 @media (max-width: 500px) {
   .games-grid { grid-template-columns: 1fr 1fr; }
   .wallet-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
@@ -336,13 +360,13 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
 
-      <!-- Slots à venir -->
-      <div class="game-card locked" onclick="comingSoon()">
-        <span class="game-badge soon">BIENTÔT</span>
-        <div class="game-icon" style="filter:grayscale(1)">🎰</div>
+      <!-- Slots -->
+      <div class="game-card" onclick="openGame('slots')">
+        <span class="game-badge">LIVE</span>
+        <div class="game-icon">🎰</div>
         <div class="game-name">SLOT MACHINE</div>
-        <div class="game-desc">3 rouleaux, multiplicateurs jusqu'à x50. Jackpot ARCH progressif.</div>
-        <div class="game-stake">À VENIR</div>
+        <div class="game-desc">3 rouleaux symboles ARCH. Aligne 3 identiques pour des multiplicateurs jusqu'à x50.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
 
       <!-- Blackjack à venir -->
@@ -425,6 +449,42 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
     <button class="btn" id="diceBtn" onclick="playDice()">[ LANCER ]</button>
 
     <div class="result-box" id="diceResult" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL SLOTS ═══ -->
+<div class="modal-overlay" id="modalSlots">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalSlots')">✕</button>
+    <div class="modal-title">◈ SLOT MACHINE</div>
+    <div class="modal-sub">ALIGNE 3 SYMBOLES — JUSQU'À x50</div>
+    <hr class="modal-hr">
+
+    <div class="reels-wrap">
+      <div class="reel" id="reel0"><span class="reel-sym" id="rs0">🟢</span></div>
+      <div class="reel" id="reel1"><span class="reel-sym" id="rs1">🟢</span></div>
+      <div class="reel" id="reel2"><span class="reel-sym" id="rs2">🟢</span></div>
+    </div>
+
+    <div class="slot-paytable">
+      ◈◈◈ ARCH JACKPOT — <span class="jackpot-line">x50</span><br>
+      💎💎💎 DIAMANT     — <span>x20</span><br>
+      ⭐⭐⭐ ÉTOILE       — <span>x10</span><br>
+      🔷🔷🔷 CRISTAL     — <span>x5</span><br>
+      🟢🟢🟢 NŒUD        — <span>x3</span><br>
+      🔲🔲🔲 BLOC        — <span>x2</span><br>
+      2 identiques       — <span>x0.5 (remboursé)</span>
+    </div>
+
+    <div class="stake-row">
+      <input type="number" class="stake-input" id="slotsStake" placeholder="mise en ARCH" min="0.000001" step="0.000001" />
+      <button class="stake-max" onclick="setMax('slotsStake')">MAX</button>
+    </div>
+
+    <div class="err-msg" id="slotsErr"></div>
+    <button class="btn" id="slotsBtn" onclick="playSlots()">[ TOURNER ]</button>
+
+    <div class="result-box" id="slotsResult" style="display:none"></div>
   </div>
 </div>
 
@@ -741,6 +801,108 @@ async function playDice() {
     resultEl.className = 'result-box result-lose';
     resultEl.innerHTML = `✗ ${diceFaces[rolled-1]} — PERDU<div class="result-amount">-${stakeVal.toFixed(6)} ARCH</div>`;
     addHist(`DICE — choix ${diceChoice} vs ${rolled} — -${stakeVal.toFixed(6)} ARCH`, 'hist-lose');
+    burst('-' + stakeVal.toFixed(6), window.innerWidth/2, 300, 'lose');
+  }
+
+  resultEl.style.display = 'block';
+  btn.disabled = false;
+}
+// ════════════════════════════════════════════════
+//  SLOT MACHINE
+// ════════════════════════════════════════════════
+const SLOT_SYMS = [
+  { sym: '◈', name: 'ARCH',    mult: 50, weight: 1  },
+  { sym: '💎', name: 'DIAMANT', mult: 20, weight: 2  },
+  { sym: '⭐', name: 'ÉTOILE',  mult: 10, weight: 4  },
+  { sym: '🔷', name: 'CRISTAL', mult: 5,  weight: 7  },
+  { sym: '🟢', name: 'NŒUD',   mult: 3,  weight: 14 },
+  { sym: '🔲', name: 'BLOC',   mult: 2,  weight: 22 },
+];
+const SLOT_POOL = SLOT_SYMS.flatMap(s => Array(s.weight).fill(s));
+
+function randSym() { return SLOT_POOL[Math.floor(Math.random() * SLOT_POOL.length)]; }
+
+async function playSlots() {
+  const stakeVal = parseFloat(document.getElementById('slotsStake').value);
+  const errEl    = document.getElementById('slotsErr');
+  const resultEl = document.getElementById('slotsResult');
+  const btn      = document.getElementById('slotsBtn');
+  errEl.textContent = '';
+  resultEl.style.display = 'none';
+
+  if (isNaN(stakeVal) || stakeVal <= 0) { errEl.textContent = 'Mise invalide.'; return; }
+  if (stakeVal > balance)               { errEl.textContent = 'Solde insuffisant.'; return; }
+
+  btn.disabled = true;
+
+  // Débit
+  const debit = await archFetch('/api/transfer', {
+    method: 'POST',
+    body: JSON.stringify({ to: '__house__', amount: stakeVal, reason: 'slots' }),
+  });
+  if (!debit.ok) { errEl.textContent = debit.error || 'Erreur.'; btn.disabled = false; return; }
+  balance = debit.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+
+  // Tirage final
+  const results = [randSym(), randSym(), randSym()];
+
+  // Animation rouleaux
+  const reels = [document.getElementById('reel0'), document.getElementById('reel1'), document.getElementById('reel2')];
+  const syms  = [document.getElementById('rs0'),   document.getElementById('rs1'),   document.getElementById('rs2')];
+  const delays = [1200, 1700, 2200];
+
+  reels.forEach(r => { r.classList.add('spinning-reel'); r.classList.remove('win-reel','jackpot-reel'); });
+
+  const intervals = syms.map((s, i) => setInterval(() => {
+    s.textContent = randSym().sym;
+  }, 80));
+
+  for (let i = 0; i < 3; i++) {
+    await new Promise(r => setTimeout(r, delays[i] - (i > 0 ? delays[i-1] : 0)));
+    clearInterval(intervals[i]);
+    syms[i].textContent = results[i].sym;
+    reels[i].classList.remove('spinning-reel');
+  }
+
+  // Calcul résultat
+  const [a, b, c] = results;
+  let mult = 0;
+  let label = '';
+  let isJackpot = false;
+
+  if (a.sym === b.sym && b.sym === c.sym) {
+    mult = a.mult;
+    label = `3x ${a.name}`;
+    isJackpot = a.mult >= 50;
+    reels.forEach(r => r.classList.add(isJackpot ? 'jackpot-reel' : 'win-reel'));
+  } else if (a.sym === b.sym || b.sym === c.sym || a.sym === c.sym) {
+    mult = 0.5;
+    label = '2 identiques';
+    reels.forEach(r => r.classList.add('win-reel'));
+  }
+
+  if (mult > 0) {
+    const gain = parseFloat((stakeVal * mult).toFixed(6));
+    const credit = await archFetch('/api/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ from: '__house__', amount: gain, reason: 'slots_win' }),
+    });
+    balance = credit.balance ?? balance + gain;
+    document.getElementById('walletBalance').textContent = balance.toFixed(6);
+    totalWins += gain;
+    document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
+
+    resultEl.className = 'result-box result-win';
+    resultEl.innerHTML = `✓ ${label} — x${mult}<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
+    addHist(`SLOTS — ${a.sym}${b.sym}${c.sym} — +${gain.toFixed(6)} ARCH`, isJackpot ? 'hist-big' : 'hist-win');
+    burst(isJackpot ? '🎰 JACKPOT ! +' + gain.toFixed(6) : '+' + gain.toFixed(6) + ' ARCH', window.innerWidth/2, 300, isJackpot ? 'big' : 'win');
+  } else {
+    totalLosses += stakeVal;
+    document.getElementById('walletLosses').textContent = '-' + totalLosses.toFixed(6) + ' ARCH';
+    resultEl.className = 'result-box result-lose';
+    resultEl.innerHTML = `✗ ${a.sym} ${b.sym} ${c.sym} — RIEN<div class="result-amount">-${stakeVal.toFixed(6)} ARCH</div>`;
+    addHist(`SLOTS — ${a.sym}${b.sym}${c.sym} — -${stakeVal.toFixed(6)} ARCH`, 'hist-lose');
     burst('-' + stakeVal.toFixed(6), window.innerWidth/2, 300, 'lose');
   }
 
