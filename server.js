@@ -1160,11 +1160,18 @@ const server = http.createServer(async (req, res) => {
 
   if (req.url.startsWith('/api/')) return api(req, res);
 
-  // Activity Discord — sert activity.html avec CLIENT_ID injecté
+  // Activity Discord — sert activity.html avec CLIENT_ID et SERVER_URL injectés
   if (req.url === '/activity' || req.url === '/activity/') {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
       if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
-      const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
+      // Déterminer l'URL du serveur depuis l'header Host
+      const host = req.headers.host;
+      const proto = req.headers['x-forwarded-proto'] || 'http';
+      const serverUrl = `${proto}://${host}`;
+      
+      let injected = data
+        .replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId)
+        .replace('__SERVER_URL__', serverUrl);
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(injected);
     });

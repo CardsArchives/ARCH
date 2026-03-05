@@ -232,6 +232,10 @@
 import { DiscordSDK } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/+esm';
 
 const CLIENT_ID = '__DISCORD_CLIENT_ID__';
+const SERVER_URL = '__SERVER_URL__'; // Injecté par le serveur
+// Si __SERVER_URL__ n'est pas injecté, utiliser location.origin en fallback
+window.__SERVER_URL__ = SERVER_URL !== '__SERVER_URL__' ? SERVER_URL : location.origin;
+
 const discordSdk = new DiscordSDK(CLIENT_ID);
 
 let myUser   = null;
@@ -309,8 +313,20 @@ async function init() {
 // ── WebSocket ─────────────────────────────────────────
 async function connectWS() {
   return new Promise(resolve => {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}/ws?token=${token}`);
+    // En Discord Activity: utiliser l'URL du serveur depuis window.__SERVER_URL__
+    // Si window.__SERVER_URL__ n'existe pas, essayer location.host en fallback
+    let serverUrl = window.__SERVER_URL__ || location.host;
+    
+    // Assurer que serverUrl inclut le protocole
+    if (!serverUrl.startsWith('http')) {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      serverUrl = proto + '//' + serverUrl;
+    }
+    
+    // Convertir http/https en ws/wss
+    serverUrl = serverUrl.replace(/^https?:/, location.protocol === 'https:' ? 'wss:' : 'ws:');
+    
+    ws = new WebSocket(`${serverUrl}/ws?token=${token}`);
     ws.onopen  = () => resolve();
     ws.onerror = () => resolve();
     ws.onmessage = e => handleWS(JSON.parse(e.data));
