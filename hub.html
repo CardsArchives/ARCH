@@ -121,16 +121,44 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 .dice-btn:hover { border-color: var(--green3); color: var(--green); }
 
 /* ═══ SLOTS ═══ */
-.reels-wrap { display: flex; justify-content: center; gap: 8px; margin: 16px 0; }
-.reel { width: 70px; height: 80px; border: 1px solid var(--green4); background: #000; display: flex; align-items: center; justify-content: center; font-size: 2.4rem; overflow: hidden; transition: border-color 0.3s; }
-.reel.spinning-reel { border-color: var(--green3); }
-.reel.win-reel { border-color: var(--green); box-shadow: 0 0 16px var(--dim); }
-.reel.jackpot-reel { border-color: var(--gold); box-shadow: 0 0 20px #ffe06688; }
-.reel.spinning-reel .reel-sym { animation: reelSpin 0.08s steps(1) infinite; }
-@keyframes reelSpin { 50% { opacity: 0.3; } }
-.slot-paytable { font-size: 0.55rem; color: var(--green3); line-height: 2; border: 1px solid var(--green4); padding: 10px 14px; margin: 10px 0; letter-spacing: 1px; }
-.slot-paytable span { color: var(--green); }
-.slot-paytable .jackpot-line { color: var(--gold); }
+/* ═══ SLOTS 5x3 ═══ */
+.slot-machine { position: relative; margin: 10px 0; border: 1px solid var(--green3); background: rgba(0,6,0,0.95); padding: 8px; box-shadow: 0 0 24px #00ff4112, inset 0 0 40px rgba(0,255,65,0.04); }
+.slot-grid { display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; }
+.slot-cell { aspect-ratio: 1; background: rgba(0,10,0,0.9); border: 1px solid var(--green4); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; transition: border-color 0.2s; }
+.slot-cell.win-cell { border-color: var(--green); box-shadow: 0 0 12px var(--dim); animation: winPulse 0.6s ease infinite alternate; }
+.slot-cell.jackpot-cell { border-color: var(--gold); box-shadow: 0 0 16px #ffe06688; animation: jackpotPulse 0.4s ease infinite alternate; }
+@keyframes winPulse { to { box-shadow: 0 0 20px var(--green); background: rgba(0,40,10,0.6); } }
+@keyframes jackpotPulse { to { box-shadow: 0 0 30px var(--gold); background: rgba(30,20,0,0.7); } }
+.slot-sym-wrap { width: 80%; height: 80%; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; }
+.slot-cell.spinning .slot-sym-wrap { animation: reelScrollAnim 0.06s linear infinite; }
+@keyframes reelScrollAnim { 0% { transform: translateY(-4px); opacity: 0.7; } 50% { transform: translateY(4px); opacity: 1; } 100% { transform: translateY(-4px); opacity: 0.7; } }
+/* Symboles SVG */
+.slot-sym { width: 100%; height: 100%; }
+/* Lignes overlay SVG */
+.slot-lines-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+/* Indicateurs de lignes */
+.slot-line-indicators { position: absolute; left: -24px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: space-around; }
+.sli { width: 18px; height: 18px; border: 1px solid var(--green4); color: var(--green4); font-size: 0.52rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; font-family: var(--font); }
+.sli.active { border-color: var(--green); color: var(--green); background: var(--dim); box-shadow: 0 0 6px var(--dim); }
+/* Paytable v2 */
+.slot-paytable-v2 { border: 1px solid var(--green4); padding: 8px 12px; margin: 10px 0; font-size: 0.58rem; }
+.spt-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0,60,0,0.3); }
+.spt-row:last-child { border-bottom: none; }
+.spt-row.jackpot-row { color: var(--gold); }
+.spt-sym { width: 22px; height: 22px; flex-shrink: 0; }
+.spt-name { flex: 1; color: var(--green3); letter-spacing: 1px; }
+.spt-val { color: var(--green); letter-spacing: 1px; font-weight: bold; }
+.spt-val.gold { color: var(--gold); }
+/* Contrôles */
+.slot-controls { display: flex; gap: 16px; margin: 10px 0; flex-wrap: wrap; }
+.slot-ctrl-group { flex: 1; min-width: 140px; }
+.slot-ctrl-label { font-size: 0.52rem; color: var(--green3); letter-spacing: 2px; margin-bottom: 3px; }
+.slot-btn-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.slot-btn-row .btn { margin-top: 0; }
+.slot-auto-info { display: flex; gap: 8px; align-items: center; font-size: 0.6rem; color: var(--green3); letter-spacing: 2px; }
+.slot-auto-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+/* Bonus wheel */
+#bonusWheelCanvas { border: 1px solid var(--green3); box-shadow: 0 0 30px #00ff4122; }
 
 /* ═══ BLACKJACK ═══ */
 .bj-table { background: rgba(0,15,5,0.95); border: 1px solid var(--green3); padding: 16px; margin-bottom: 14px; }
@@ -350,34 +378,87 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   </div>
 </div>
 
-<!-- MODAL SLOTS -->
+<!-- MODAL SLOTS 5x3 -->
 <div class="modal-overlay" id="modalSlots">
-  <div class="modal">
+  <div class="modal" style="width:min(640px,98vw);padding:20px 18px 20px 42px;">
     <button class="modal-close" onclick="closeModal('modalSlots')">&#10005;</button>
     <div class="modal-title">&#9670; SLOT MACHINE</div>
-    <div class="modal-sub">ALIGNE 3 SYMBOLES &mdash; JUSQU'A x50</div>
+    <div class="modal-sub">GRILLE 5&#215;3 &mdash; 5 LIGNES DE PAIEMENT &mdash; BONUS ARCH</div>
     <hr class="modal-hr">
-    <div class="reels-wrap">
-      <div class="reel" id="reel0"><span class="reel-sym" id="rs0">&#128994;</span></div>
-      <div class="reel" id="reel1"><span class="reel-sym" id="rs1">&#128994;</span></div>
-      <div class="reel" id="reel2"><span class="reel-sym" id="rs2">&#128994;</span></div>
+
+    <!-- Machine -->
+    <div class="slot-machine">
+      <!-- Lignes de victoire overlay -->
+      <svg class="slot-lines-svg" id="slotLinesSvg" viewBox="0 0 5 3" preserveAspectRatio="none"></svg>
+      <!-- Grille 5x3 -->
+      <div class="slot-grid" id="slotGrid">
+        <!-- 5 colonnes x 3 rangées = 15 cellules générées en JS -->
+      </div>
+      <!-- Indicateurs de lignes à gauche -->
+      <div class="slot-line-indicators">
+        <div class="sli" data-line="0" title="Ligne haute" onclick="slotToggleLine(0)">1</div>
+        <div class="sli active" data-line="1" title="Ligne milieu" onclick="slotToggleLine(1)">2</div>
+        <div class="sli" data-line="2" title="Ligne basse" onclick="slotToggleLine(2)">3</div>
+        <div class="sli" data-line="3" title="V" onclick="slotToggleLine(3)">4</div>
+        <div class="sli" data-line="4" title="^" onclick="slotToggleLine(4)">5</div>
+      </div>
     </div>
-    <div class="slot-paytable">
-      &#9670;&#9670;&#9670; ARCH JACKPOT &mdash; <span class="jackpot-line">x50</span><br>
-      &#128142;&#128142;&#128142; DIAMANT &mdash; <span>x20</span><br>
-      &#11088;&#11088;&#11088; ETOILE &mdash; <span>x10</span><br>
-      &#128311;&#128311;&#128311; CRISTAL &mdash; <span>x5</span><br>
-      &#128994;&#128994;&#128994; NOEUD &mdash; <span>x3</span><br>
-      &#128306;&#128306;&#128306; BLOC &mdash; <span>x2</span><br>
-      2 identiques &mdash; <span>x0.5</span>
+
+    <!-- Paytable -->
+    <div class="slot-paytable-v2" id="slotPaytable">
+      <div class="spt-row jackpot-row"><span class="spt-sym" data-sym="0"></span><span class="spt-name">ARCH &#10007;3</span><span class="spt-val gold">BONUS WHEEL</span></div>
+      <div class="spt-row"><span class="spt-sym" data-sym="5"></span><span class="spt-name">DIAMOND &#10007;3/4/5</span><span class="spt-val">x10 / x20 / x40</span></div>
+      <div class="spt-row"><span class="spt-sym" data-sym="4"></span><span class="spt-name">STAR &#10007;3/4/5</span><span class="spt-val">x5 / x12 / x25</span></div>
+      <div class="spt-row"><span class="spt-sym" data-sym="3"></span><span class="spt-name">CRYSTAL &#10007;3/4/5</span><span class="spt-val">x3 / x8 / x15</span></div>
+      <div class="spt-row"><span class="spt-sym" data-sym="1"></span><span class="spt-name">NODE &#10007;3/4/5</span><span class="spt-val">x2 / x5 / x10</span></div>
+      <div class="spt-row"><span class="spt-sym" data-sym="2"></span><span class="spt-name">BLOCK &#10007;3/4/5</span><span class="spt-val">x1.5 / x3 / x6</span></div>
+      <div class="spt-row"><span class="spt-sym" data-sym="6"></span><span class="spt-name">VOID &#10007;3/4/5</span><span class="spt-val">x0.5 / x1 / x2</span></div>
     </div>
-    <div class="stake-row">
-      <input type="number" class="stake-input" id="slotsStake" placeholder="mise en ARCH" min="0.000001" step="0.000001" />
-      <button class="stake-max" onclick="setMax('slotsStake')">MAX</button>
+
+    <!-- Contrôles -->
+    <div class="slot-controls">
+      <div class="slot-ctrl-group">
+        <div class="slot-ctrl-label">MISE / LIGNE</div>
+        <div class="stake-row" style="margin:4px 0">
+          <input type="number" class="stake-input" id="slotsStake" placeholder="0.000001" min="0.000001" step="0.000001" />
+          <button class="stake-max" onclick="setMax('slotsStake')">MAX</button>
+        </div>
+      </div>
+      <div class="slot-ctrl-group">
+        <div class="slot-ctrl-label">LIGNES ACTIVES : <span id="slotActiveLines">1</span></div>
+        <div class="slot-ctrl-label" style="color:var(--gold)">MISE TOTALE : <span id="slotTotalBet">—</span> ARCH</div>
+      </div>
     </div>
+
+    <div class="slot-btn-row">
+      <button class="btn" id="slotsBtn" onclick="playSlots()">[ TOURNER ]</button>
+      <button class="btn" id="slotAutoBtn" onclick="slotToggleAuto()" style="flex:0.4;border-color:var(--green3);color:var(--green3)">AUTO</button>
+      <div class="slot-auto-info" id="slotAutoInfo" style="display:none">
+        <span id="slotAutoCount">0</span> restants
+        <button class="btn" style="padding:4px 10px;font-size:0.55rem;margin-top:0;flex:none;width:auto" onclick="slotStopAuto()">STOP</button>
+      </div>
+    </div>
+    <div class="slot-auto-row" id="slotAutoRow" style="display:none">
+      <span class="slot-ctrl-label">TOURS AUTO :</span>
+      <select class="mines-select" id="slotAutoSelect"><option>10</option><option>25</option><option>50</option><option>100</option></select>
+      <button class="btn" style="flex:none;width:auto;padding:6px 16px;margin-top:0;font-size:0.6rem" onclick="slotStartAuto()">GO</button>
+    </div>
+
     <div class="err-msg" id="slotsErr"></div>
-    <button class="btn" id="slotsBtn" onclick="playSlots()">[ TOURNER ]</button>
     <div class="result-box" id="slotsResult" style="display:none"></div>
+  </div>
+</div>
+
+<!-- MODAL BONUS WHEEL ARCH -->
+<div class="modal-overlay" id="modalBonusWheel" style="z-index:200">
+  <div class="modal" style="width:min(420px,96vw);text-align:center">
+    <div class="modal-title" style="font-size:1.1rem;letter-spacing:8px;text-align:center">&#9670; ARCH BONUS &#9670;</div>
+    <div class="modal-sub" style="text-align:center">LA ROUE DU DESTIN</div>
+    <hr class="modal-hr">
+    <canvas id="bonusWheelCanvas" width="340" height="340" style="display:block;margin:0 auto;max-width:100%"></canvas>
+    <div class="crash-mult" id="bonusWheelResult" style="display:none;padding:10px 0"></div>
+    <button class="btn btn-gold" id="bonusSpinBtn" onclick="spinBonusWheel()" style="margin-top:12px">[ FAIRE TOURNER ]</button>
+    <button class="btn" id="bonusCloseBtn" onclick="closeBonusWheel()" style="display:none;margin-top:8px">[ CONTINUER ]</button>
   </div>
 </div>
 
@@ -628,47 +709,311 @@ async function playDice(){
   resEl.style.display='block';btn.disabled=false;
 }
 
-// ════ SLOTS ════
-const SLOT_SYMS=[{sym:'\u25C8',name:'ARCH',mult:50,weight:1},{sym:'\uD83D\uDC8E',name:'DIAMANT',mult:20,weight:2},{sym:'\u2B50',name:'ETOILE',mult:10,weight:4},{sym:'\uD83D\uDD37',name:'CRISTAL',mult:5,weight:7},{sym:'\uD83D\uDFE2',name:'NOEUD',mult:3,weight:14},{sym:'\uD83D\uDD32',name:'BLOC',mult:2,weight:22}];
-const SLOT_POOL=SLOT_SYMS.flatMap(s=>Array(s.weight).fill(s));
-function randSym(){return SLOT_POOL[Math.floor(Math.random()*SLOT_POOL.length)];}
+// ════ SLOTS 5x3 ════
+// Symboles SVG inline dans la direction artistique ARCH (monochrome vert/noir)
+const SLOT_SVG = {
+  0: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,2 24,14 38,14 27,22 31,36 20,28 9,36 13,22 2,14 16,14" fill="none" stroke="#00ff41" stroke-width="2"/><text x="20" y="24" text-anchor="middle" font-size="9" fill="#00ff41" font-family="monospace" font-weight="900">ARCH</text></svg>`,
+  1: `<svg viewBox="0 0 40 40" class="slot-sym"><circle cx="20" cy="20" r="14" fill="none" stroke="#00ff41" stroke-width="1.5"/><circle cx="20" cy="20" r="8" fill="none" stroke="#00cc33" stroke-width="1"/><circle cx="20" cy="20" r="3" fill="#00ff41"/><line x1="6" y1="20" x2="34" y2="20" stroke="#00ff4155" stroke-width="1"/><line x1="20" y1="6" x2="20" y2="34" stroke="#00ff4155" stroke-width="1"/></svg>`,
+  2: `<svg viewBox="0 0 40 40" class="slot-sym"><rect x="8" y="8" width="24" height="24" fill="none" stroke="#00ff41" stroke-width="1.5"/><rect x="13" y="13" width="14" height="14" fill="none" stroke="#00cc33" stroke-width="1"/><rect x="17" y="17" width="6" height="6" fill="#00ff41"/></svg>`,
+  3: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,4 36,20 20,36 4,20" fill="none" stroke="#00ff41" stroke-width="1.5"/><polygon points="20,10 30,20 20,30 10,20" fill="none" stroke="#00cc33" stroke-width="1"/><polygon points="20,16 24,20 20,24 16,20" fill="#00ff41"/></svg>`,
+  4: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,3 22,14 34,14 25,21 28,33 20,26 12,33 15,21 6,14 18,14" fill="#003300" stroke="#00ff41" stroke-width="1.5"/><line x1="20" y1="7" x2="20" y2="12" stroke="#00ff41" stroke-width="1.5"/><line x1="24" y1="9" x2="26" y2="13" stroke="#00ff41" stroke-width="1.5"/></svg>`,
+  5: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,4 24,16 38,16 27,24 31,38 20,30 9,38 13,24 2,16 16,16" fill="#002200" stroke="#00ff41" stroke-width="1.8"/><polygon points="20,10 22,17 30,17 24,21 26,29 20,24 14,29 16,21 10,17 18,17" fill="#00ff41"/></svg>`,
+  6: `<svg viewBox="0 0 40 40" class="slot-sym"><circle cx="20" cy="20" r="15" fill="none" stroke="#004400" stroke-width="1.5" stroke-dasharray="4,2"/><circle cx="20" cy="20" r="8" fill="none" stroke="#00ff4155" stroke-width="1" stroke-dasharray="3,2"/><text x="20" y="25" text-anchor="middle" font-size="14" fill="#00ff4188" font-family="monospace">?</text></svg>`,
+};
 
-async function playSlots(){
-  const sv=parseFloat(document.getElementById('slotsStake').value);
-  const errEl=document.getElementById('slotsErr'),resEl=document.getElementById('slotsResult'),btn=document.getElementById('slotsBtn');
-  errEl.textContent='';resEl.style.display='none';
-  if(isNaN(sv)||sv<=0){errEl.textContent='Mise invalide.';return;}
-  if(sv>balance){errEl.textContent='Solde insuffisant.';return;}
-  btn.disabled=true;
-  const data=await archFetch('/api/game/slots',{method:'POST',body:JSON.stringify({amount:sv})});
-  if(!data.ok){errEl.textContent=data.error||'Erreur.';btn.disabled=false;return;}
-  const results=data.reels;
-  const reels=[document.getElementById('reel0'),document.getElementById('reel1'),document.getElementById('reel2')];
-  const syms=[document.getElementById('rs0'),document.getElementById('rs1'),document.getElementById('rs2')];
-  reels.forEach(r=>{r.classList.add('spinning-reel');r.classList.remove('win-reel','jackpot-reel');});
-  const intervals=syms.map(s=>setInterval(()=>{s.textContent=randSym().sym;},80));
-  const delays=[1200,1700,2200];
-  for(let i=0;i<3;i++){
-    await new Promise(r=>setTimeout(r,delays[i]-(i>0?delays[i-1]:0)));
-    clearInterval(intervals[i]);syms[i].textContent=results[i].sym;reels[i].classList.remove('spinning-reel');
+// Config des lignes de paiement (positions [col, row])
+const PAYLINES = [
+  [[0,0],[1,0],[2,0],[3,0],[4,0]], // ligne 0 = haut
+  [[0,1],[1,1],[2,1],[3,1],[4,1]], // ligne 1 = milieu
+  [[0,2],[1,2],[2,2],[3,2],[4,2]], // ligne 2 = bas
+  [[0,0],[1,1],[2,2],[3,1],[4,0]], // ligne 3 = V
+  [[0,2],[1,1],[2,0],[3,1],[4,2]], // ligne 4 = ^
+];
+const PAYLINE_COLORS = ['#00ff41','#00cc33','#008f11','#ffe066','#ff003c'];
+
+let slotActiveLinesMask = [false, true, false, false, false]; // ligne 1 active par défaut
+let slotAutoRunning = false, slotAutoLeft = 0;
+let slotBonusReward = 0;
+
+// Init grille vide
+function slotInitGrid() {
+  const grid = document.getElementById('slotGrid');
+  grid.innerHTML = '';
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 5; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'slot-cell';
+      cell.id = `sc_${c}_${r}`;
+      cell.innerHTML = `<div class="slot-sym-wrap">${SLOT_SVG[1]}</div>`;
+      grid.appendChild(cell);
+    }
   }
-  const{mult,label}=data;const[a,b,c]=results;const isJackpot=mult>=50;
-  balance=data.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
-  if(mult>0){
-    const gain=parseFloat((sv*mult).toFixed(6));
-    reels.forEach(r=>r.classList.add(isJackpot?'jackpot-reel':'win-reel'));
-    totalWins+=gain;document.getElementById('walletWins').textContent='+'+totalWins.toFixed(6)+' ARCH';
-    resEl.className='result-box result-win';resEl.innerHTML=`&#10003; ${label} &mdash; x${mult}<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
-    addHist(`SLOTS \u2014 ${a.sym}${b.sym}${c.sym} \u2014 +${gain.toFixed(6)} ARCH`,isJackpot?'hist-big':'hist-win');
-    burst(isJackpot?'JACKPOT ! +'+gain.toFixed(6):'+'+gain.toFixed(6)+' ARCH',window.innerWidth/2,300,isJackpot?'big':'win');
-  }else{
-    totalLosses+=sv;document.getElementById('walletLosses').textContent='-'+totalLosses.toFixed(6)+' ARCH';
-    resEl.className='result-box result-lose';resEl.innerHTML=`&#10007; ${a.sym} ${b.sym} ${c.sym} &mdash; RIEN<div class="result-amount">-${sv.toFixed(6)} ARCH</div>`;
-    addHist(`SLOTS \u2014 ${a.sym}${b.sym}${c.sym} \u2014 -${sv.toFixed(6)} ARCH`,'hist-lose');
-    burst('-'+sv.toFixed(6),window.innerWidth/2,300,'lose');
-  }
-  resEl.style.display='block';btn.disabled=false;
+  // Render paytable SVG symbols
+  document.querySelectorAll('.spt-sym[data-sym]').forEach(el => {
+    el.innerHTML = SLOT_SVG[parseInt(el.dataset.sym)];
+  });
+  slotUpdateUI();
 }
+
+function slotToggleLine(idx) {
+  slotActiveLinesMask[idx] = !slotActiveLinesMask[idx];
+  const sli = document.querySelector(`.sli[data-line="${idx}"]`);
+  sli.classList.toggle('active', slotActiveLinesMask[idx]);
+  slotUpdateUI();
+}
+
+function slotUpdateUI() {
+  const active = slotActiveLinesMask.filter(Boolean).length;
+  document.getElementById('slotActiveLines').textContent = active;
+  const sv = parseFloat(document.getElementById('slotsStake').value) || 0;
+  const total = parseFloat((sv * active).toFixed(6));
+  document.getElementById('slotTotalBet').textContent = active > 0 ? total.toFixed(6) : '—';
+}
+
+// Animer défilement vertical d'un rouleau
+function slotSpinReel(col, finalSyms, delay) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const cells = [0,1,2].map(r => document.getElementById(`sc_${col}_${r}`));
+      cells.forEach(c => c.classList.add('spinning'));
+      let tick = 0;
+      const randId = () => Math.floor(Math.random() * 7);
+      const anim = setInterval(() => {
+        cells.forEach(c => { c.querySelector('.slot-sym-wrap').innerHTML = SLOT_SVG[randId()]; });
+        tick++;
+      }, 60);
+      setTimeout(() => {
+        clearInterval(anim);
+        cells.forEach((c, r) => {
+          c.classList.remove('spinning');
+          c.querySelector('.slot-sym-wrap').innerHTML = SLOT_SVG[finalSyms[r].id];
+        });
+        resolve();
+      }, 900);
+    }, delay);
+  });
+}
+
+// Dessiner les lignes gagnantes sur le SVG overlay
+function slotDrawWinLines(winLines) {
+  const svg = document.getElementById('slotLinesSvg');
+  svg.innerHTML = '';
+  const grid = document.getElementById('slotGrid');
+  const gRect = grid.getBoundingClientRect();
+  const svgRect = svg.getBoundingClientRect();
+  const offX = gRect.left - svgRect.left;
+  const offY = gRect.top - svgRect.top;
+  const cellW = gRect.width / 5;
+  const cellH = gRect.height / 3;
+  winLines.forEach(wl => {
+    const line = PAYLINES[wl.lineIdx];
+    const pts = line.map(([c, r]) => {
+      const x = ((offX + c * cellW + cellW / 2) / svgRect.width * 5).toFixed(3);
+      const y = ((offY + r * cellH + cellH / 2) / svgRect.height * 3).toFixed(3);
+      return `${x},${y}`;
+    });
+    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline.setAttribute('points', pts.join(' '));
+    polyline.setAttribute('fill', 'none');
+    polyline.setAttribute('stroke', PAYLINE_COLORS[wl.lineIdx % PAYLINE_COLORS.length]);
+    polyline.setAttribute('stroke-width', '0.06');
+    polyline.setAttribute('stroke-linecap', 'round');
+    polyline.setAttribute('opacity', '0.85');
+    svg.appendChild(polyline);
+    // Highlight cells
+    line.slice(0, wl.count).forEach(([c, r]) => {
+      const cell = document.getElementById(`sc_${c}_${r}`);
+      cell.classList.add(wl.symId === 0 ? 'jackpot-cell' : 'win-cell');
+    });
+  });
+  // Clear after 2s
+  setTimeout(() => { svg.innerHTML = ''; document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('win-cell','jackpot-cell')); }, 2200);
+}
+
+async function playSlots() {
+  const stakePerLine = parseFloat(document.getElementById('slotsStake').value);
+  const activeLines = slotActiveLinesMask.map((a,i) => a ? i : -1).filter(i => i >= 0);
+  const errEl = document.getElementById('slotsErr'), resEl = document.getElementById('slotsResult');
+  const btn = document.getElementById('slotsBtn');
+  errEl.textContent = ''; resEl.style.display = 'none';
+  if (activeLines.length === 0) { errEl.textContent = 'Active au moins 1 ligne.'; return; }
+  if (isNaN(stakePerLine) || stakePerLine <= 0) { errEl.textContent = 'Mise invalide.'; return; }
+  const totalBet = parseFloat((stakePerLine * activeLines.length).toFixed(6));
+  if (totalBet > balance) { errEl.textContent = 'Solde insuffisant.'; return; }
+  btn.disabled = true;
+
+  // Clear highlights
+  document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('win-cell','jackpot-cell'));
+  document.getElementById('slotLinesSvg').innerHTML = '';
+
+  const data = await archFetch('/api/game/slots', { method: 'POST', body: JSON.stringify({ amount: totalBet }) });
+  if (!data.ok) { errEl.textContent = data.error || 'Erreur.'; btn.disabled = false; return; }
+
+  // Animate 5 reels avec délais décalés
+  const spinPromises = [0,1,2,3,4].map(c => slotSpinReel(c, data.grid[c], c * 160));
+  await Promise.all(spinPromises);
+
+  // Filtrer les winLines aux lignes actives seulement
+  const activeWinLines = (data.winLines || []).filter(wl => activeLines.includes(wl.lineIdx));
+
+  balance = data.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+
+  if (activeWinLines.length > 0) slotDrawWinLines(activeWinLines);
+
+  const totalMult = activeWinLines.reduce((s, wl) => s + wl.payout, 0);
+  const gain = parseFloat((totalBet * totalMult).toFixed(6));
+
+  if (data.bonusTriggered) {
+    // Jeu bonus : on affiche la roue
+    slotBonusReward = data.bonusReward;
+    resEl.style.display = 'none';
+    btn.disabled = false;
+    setTimeout(() => openBonusWheel(slotBonusReward), 800);
+    addHist(`SLOTS \u2014 BONUS ARCH DECLENCHE !`, 'hist-big');
+    burst('\u2605 BONUS ARCH !', window.innerWidth/2, 280, 'big');
+  } else if (totalMult > 0) {
+    totalWins += gain;
+    document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
+    resEl.className = 'result-box result-win';
+    resEl.innerHTML = `&#10003; ${activeWinLines.length} ligne(s) &mdash; x${totalMult.toFixed(2)}<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
+    addHist(`SLOTS \u2014 x${totalMult.toFixed(2)} \u2014 +${gain.toFixed(6)} ARCH`, 'hist-win');
+    burst('+' + gain.toFixed(6) + ' ARCH', window.innerWidth/2, 300, gain >= 1 ? 'big' : 'win');
+    resEl.style.display = 'block';
+  } else {
+    totalLosses += totalBet;
+    document.getElementById('walletLosses').textContent = '-' + totalLosses.toFixed(6) + ' ARCH';
+    resEl.className = 'result-box result-lose';
+    resEl.innerHTML = `&#10007; AUCUNE LIGNE<div class="result-amount">-${totalBet.toFixed(6)} ARCH</div>`;
+    addHist(`SLOTS \u2014 -${totalBet.toFixed(6)} ARCH`, 'hist-lose');
+    burst('-' + totalBet.toFixed(6), window.innerWidth/2, 300, 'lose');
+    resEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  // Auto-bet
+  if (slotAutoRunning) {
+    slotAutoLeft--;
+    document.getElementById('slotAutoCount').textContent = slotAutoLeft;
+    if (slotAutoLeft <= 0) slotStopAuto();
+    else setTimeout(playSlots, 600);
+  }
+}
+
+// AUTO BET
+function slotToggleAuto() {
+  const row = document.getElementById('slotAutoRow');
+  row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+}
+function slotStartAuto() {
+  slotAutoLeft = parseInt(document.getElementById('slotAutoSelect').value) || 10;
+  slotAutoRunning = true;
+  document.getElementById('slotAutoRow').style.display = 'none';
+  document.getElementById('slotAutoInfo').style.display = 'flex';
+  document.getElementById('slotAutoCount').textContent = slotAutoLeft;
+  playSlots();
+}
+function slotStopAuto() {
+  slotAutoRunning = false;
+  document.getElementById('slotAutoInfo').style.display = 'none';
+  document.getElementById('slotAutoRow').style.display = 'none';
+}
+
+// ════ BONUS WHEEL ════
+function openBonusWheel(reward) {
+  document.getElementById('modalBonusWheel').classList.add('open');
+  document.getElementById('bonusWheelResult').style.display = 'none';
+  document.getElementById('bonusSpinBtn').style.display = '';
+  document.getElementById('bonusCloseBtn').style.display = 'none';
+  slotBonusReward = reward;
+  drawBonusWheel(0);
+}
+function closeBonusWheel() {
+  document.getElementById('modalBonusWheel').classList.remove('open');
+  const gain = slotBonusReward;
+  totalWins += gain;
+  document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
+  const resEl = document.getElementById('slotsResult');
+  resEl.className = 'result-box result-win';
+  resEl.innerHTML = `&#9670; BONUS ARCH !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
+  resEl.style.display = 'block';
+  addHist(`SLOTS BONUS \u2014 +${gain.toFixed(6)} ARCH`, 'hist-big');
+  burst('\u2605 +' + gain.toFixed(6) + ' ARCH !', window.innerWidth/2, 300, 'big');
+}
+
+function drawBonusWheel(angle) {
+  const canvas = document.getElementById('bonusWheelCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 10;
+  const segments = 12;
+  const step = (Math.PI*2) / segments;
+  ctx.clearRect(0,0,W,H);
+  // Fond
+  ctx.beginPath(); ctx.arc(cx,cy,r+2,0,Math.PI*2);
+  ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 2; ctx.stroke();
+  for (let i = 0; i < segments; i++) {
+    const start = angle + i * step, end = angle + (i+1) * step;
+    const isGold = i % 4 === 0;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,start,end);
+    ctx.closePath();
+    ctx.fillStyle = isGold ? '#1a1200' : (i%2===0 ? '#000800' : '#001200');
+    ctx.fill();
+    ctx.strokeStyle = isGold ? '#ffe066' : '#00ff4155';
+    ctx.lineWidth = 1; ctx.stroke();
+    // Label
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle + (i+0.5)*step);
+    ctx.textAlign = 'right'; ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = isGold ? '#ffe066' : '#00ff41';
+    // Les labels sont symboliques, la vraie valeur vient du serveur
+    const labels = ['MAX','1-5','5-15','1-5','15-100','1-5','100-1k','1-5','5-15','1-5','MAX','1-5'];
+    ctx.fillText(labels[i], r-6, 3);
+    ctx.restore();
+  }
+  // Aiguille
+  ctx.beginPath(); ctx.moveTo(cx, cy-r+4);
+  ctx.lineTo(cx-6, cy-r+18); ctx.lineTo(cx+6, cy-r+18); ctx.closePath();
+  ctx.fillStyle = '#ff003c'; ctx.fill();
+  // Centre
+  ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2);
+  ctx.fillStyle = '#00ff41'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2);
+  ctx.fillStyle = '#000'; ctx.fill();
+}
+
+async function spinBonusWheel() {
+  document.getElementById('bonusSpinBtn').disabled = true;
+  const canvas = document.getElementById('bonusWheelCanvas');
+  const totalRotation = Math.PI*2 * (5 + Math.random()*5); // 5-10 tours
+  const duration = 4000;
+  const start = performance.now();
+  await new Promise(resolve => {
+    function frame(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const angle = ease * totalRotation;
+      drawBonusWheel(angle);
+      if (progress < 1) requestAnimationFrame(frame);
+      else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
+  // Afficher le résultat
+  const resEl = document.getElementById('bonusWheelResult');
+  resEl.textContent = '+' + slotBonusReward.toFixed(6) + ' ARCH';
+  resEl.style.display = 'block';
+  resEl.className = 'crash-mult winning';
+  document.getElementById('bonusSpinBtn').style.display = 'none';
+  document.getElementById('bonusCloseBtn').style.display = '';
+  burst('\u2605 +' + slotBonusReward.toFixed(6) + ' !', window.innerWidth/2, 200, 'big');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  slotInitGrid();
+  document.getElementById('slotsStake').addEventListener('input', slotUpdateUI);
+});
 
 // ════ BLACKJACK ════
 let bjState=null;

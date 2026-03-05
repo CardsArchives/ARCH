@@ -351,39 +351,115 @@ async function api(req, res) {
     if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
     if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
 
-    const SLOT_SYMS = [
-      { sym: '◈', name: 'ARCH',    mult: 50, weight: 1  },
-      { sym: '💎', name: 'DIAMANT', mult: 20, weight: 2  },
-      { sym: '⭐', name: 'ÉTOILE',  mult: 10, weight: 4  },
-      { sym: '🔷', name: 'CRISTAL', mult: 5,  weight: 7  },
-      { sym: '🟢', name: 'NOEUD',  mult: 3,  weight: 14 },
-      { sym: '🔲', name: 'BLOC',   mult: 2,  weight: 22 },
+    // Symboles : id utilisé côté client pour le rendu SVG
+    // ARCH (id:0) = symbole spécial bonus uniquement sur rouleaux 1,3,5 (index 0,2,4)
+    // Autres symboles sur tous les rouleaux
+    const SYMS = [
+      { id: 0, name: 'ARCH',    weight: 2  }, // scatter bonus (rouleaux 1,3,5 seulement)
+      { id: 1, name: 'NODE',    weight: 12, payouts: [0,0,2,5,10]  },
+      { id: 2, name: 'BLOCK',   weight: 18, payouts: [0,0,1.5,3,6] },
+      { id: 3, name: 'CRYSTAL', weight: 14, payouts: [0,0,3,8,15]  },
+      { id: 4, name: 'STAR',    weight: 10, payouts: [0,0,5,12,25] },
+      { id: 5, name: 'DIAMOND', weight: 6,  payouts: [0,0,10,20,40]},
+      { id: 6, name: 'VOID',    weight: 8,  payouts: [0,0,0.5,1,2] },
     ];
-    const pool = SLOT_SYMS.flatMap(s => Array(s.weight).fill(s));
-    const randSym = () => pool[Math.floor(Math.random() * pool.length)];
-    const reels = [randSym(), randSym(), randSym()];
-    const [a, b, c] = reels;
 
-    let mult = 0;
-    let label = '';
-    if (a.sym === b.sym && b.sym === c.sym) { mult = a.mult; label = '3x ' + a.name; }
-    else if (a.sym === b.sym || b.sym === c.sym || a.sym === c.sym) { mult = 0.5; label = '2 identiques'; }
-
-    let netDelta = 0;
-    if (mult > 0) {
-      const gain = parseFloat((amt * mult).toFixed(6));
-      netDelta = parseFloat((gain - amt).toFixed(6));
-      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $2 WHERE username = $3', [netDelta, netDelta > 0 ? netDelta : 0, user.username]);
-      await addHistory(user.username, netDelta, 'slots_win');
-    } else {
-      netDelta = -amt;
-      await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
-      await addHistory(user.username, -amt, 'slots_lose');
+    // Pool par rouleau : ARCH uniquement sur 0,2,4
+    function makePool(reelIdx) {
+      return SYMS.flatMap(s => {
+        if (s.id === 0 && ![0,2,4].includes(reelIdx)) return [];
+        return Array(s.weight).fill(s);
+      });
+    }
+    function spin(reelIdx) {
+      const pool = makePool(reelIdx);
+      // Génère 3 rangées visibles pour ce rouleau
+      return Array.from({length:3}, () => {
+        const s = pool[Math.floor(Math.random() * pool.length)];
+        return { id: s.id, name: s.name };
+      });
     }
 
+    // grid[col][row] — 5 colonnes, 3 rangées
+    const grid = [0,1,2,3,4].map(i => spin(i));
+
+    // Vérifier bonus ARCH : ARCH sur rouleaux 1,3,5 (cols 0,2,4)
+    const archOnOddReels = [0,2,4].filter(col => grid[col].some(cell => cell.id === 0));
+    const bonusTriggered = archOnOddReels.length === 3 && Math.random() < 0.01; // ~1% quand 3 ARCH alignés
+
+    // Lignes de paiement : 5 lignes horizontales (rangées 0,1,2) + 2 diagonales
+    const PAYLINES = [
+      [0,1,2,3,4].map(c => ({c, r:0})), // ligne haut
+      [0,1,2,3,4].map(c => ({c, r:1})), // ligne milieu
+      [0,1,2,3,4].map(c => ({c, r:2})), // ligne bas
+      [{c:0,r:0},{c:1,r:1},{c:2,r:2},{c:3,r:1},{c:4,r:0}], // V
+      [{c:0,r:2},{c:1,r:1},{c:2,r:0},{c:3,r:1},{c:4,r:2}], // ^
+    ];
+
+    let totalMult = 0;
+    const winLines = [];
+
+    for (const line of PAYLINES) {
+      // Compte le nombre de symboles identiques depuis la gauche
+      const firstId = grid[line[0].c][line[0].r].id;
+      if (firstId === 0) continue; // ARCH ne compte pas dans les lignes normales
+      let count = 1;
+      for (let i = 1; i < line.length; i++) {
+        if (grid[line[i].c][line[i].r].id === firstId) count++;
+        else break;
+      }
+      if (count >= 3) {
+        const sym = SYMS.find(s => s.id === firstId);
+        const payout = sym.payouts[count - 1] || 0;
+        if (payout > 0) {
+          totalMult += payout;
+          winLines.push({ lineIdx: PAYLINES.indexOf(line), symId: firstId, count, payout });
+        }
+      }
+    }
+
+    // Bonus ARCH wheel — récompense aléatoire avec moyenne raisonnable
+    let bonusReward = 0;
+    if (bonusTriggered) {
+      // Distribution log-normale : majorité entre 1-15 ARCH, quelques gros lots
+      const r = Math.random();
+      if (r < 0.60)      bonusReward = parseFloat((Math.random() * 4 + 1).toFixed(6));       // 1-5 ARCH
+      else if (r < 0.85) bonusReward = parseFloat((Math.random() * 10 + 5).toFixed(6));      // 5-15 ARCH
+      else if (r < 0.97) bonusReward = parseFloat((Math.random() * 85 + 15).toFixed(6));     // 15-100 ARCH
+      else if (r < 0.999) bonusReward = parseFloat((Math.random() * 900 + 100).toFixed(6)); // 100-1000 ARCH
+      else bonusReward = parseFloat((Math.random() * 999000 + 1000).toFixed(6));             // 1000-1000000 ARCH (0.1%)
+    }
+
+    const gain = parseFloat((amt * totalMult).toFixed(6));
+    const netDelta = parseFloat((gain - amt + bonusReward).toFixed(6));
+
+    await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+    if (gain > 0) {
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain, user.username]);
+    }
+    if (bonusReward > 0) {
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [bonusReward, user.username]);
+      await addHistory(user.username, bonusReward, 'slots_bonus');
+    }
+    if (netDelta !== 0) await addHistory(user.username, netDelta, netDelta > 0 ? 'slots_win' : 'slots_lose');
+
     const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[SLOTS] ${user.username} → ${reels.map(r=>r.sym).join('')} mult:${mult} netDelta:${netDelta}`);
-    return json(res, 200, { ok: true, reels: reels.map(r => ({ sym: r.sym, name: r.name, mult: r.mult })), mult, label, netDelta, balance: updated.rows[0].balance });
+    console.log(`[SLOTS5x3] ${user.username} mult:${totalMult} lines:${winLines.length} bonus:${bonusReward}`);
+    return json(res, 200, {
+      ok: true, grid,
+      winLines, totalMult, netDelta,
+      bonusTriggered, bonusReward,
+      balance: updated.rows[0].balance
+    });
+  }
+
+  // GAME — SLOTS BONUS WHEEL (roue ARCH)
+  if (endpoint === '/api/game/slots-bonus' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    // Le bonus a déjà été crédité lors du spin, on renvoie juste la récompense pour l'animation
+    const { reward } = await body(req);
+    return json(res, 200, { ok: true, reward: parseFloat(reward) });
   }
 
 
