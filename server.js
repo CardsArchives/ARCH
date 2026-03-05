@@ -685,9 +685,9 @@ async function api(req, res) {
       pos += dir;
     }
     // Multipliers for each slot (bell curve, house edge ~3%)
-    const multipliers8  = [10, 3, 1.4, 0.4, 0.2, 0.4, 1.4, 3, 10];
-    const multipliers12 = [20, 6, 2.5, 1.1, 0.5, 0.2, 0.2, 0.5, 1.1, 2.5, 6, 20];
-    const multipliers16 = [60, 18, 7, 2.5, 1.2, 0.5, 0.3, 0.2, 0.2, 0.3, 0.5, 1.2, 2.5, 7, 18, 60];
+    const multipliers8  = [10, 3, 1.4, 0.4, 0.2, 0.4, 1.4, 3, 10];           // 9 slots
+    const multipliers12 = [20, 6, 2.5, 1.1, 0.5, 0.2, 0.2, 0.2, 0.5, 1.1, 2.5, 6, 20];  // 13 slots
+    const multipliers16 = [60, 18, 7, 2.5, 1.2, 0.5, 0.3, 0.2, 0.2, 0.2, 0.3, 0.5, 1.2, 2.5, 7, 18, 60]; // 17 slots
     const mults = r <= 8 ? multipliers8 : r <= 12 ? multipliers12 : multipliers16;
     const mult = mults[pos] || 0.2;
     const gain = parseFloat((amt * mult).toFixed(6));
