@@ -370,8 +370,8 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
       </div>
 
       <!-- Blackjack à venir -->
-      <div class="game-card" onclick="openGame('blackjack')">
-        <span class="game-badge">LIVE</span>
+      <div class="game-card locked" onclick="comingSoon()">
+        <span class="game-badge soon">SOON</span>
         <div class="game-icon" >🃏</div>
         <div class="game-name">BLACKJACK</div>
         <div class="game-desc">21 contre le dealer. Stratégie et chance. Mise jusqu'à x2.5.</div>
@@ -493,7 +493,6 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 //  CONFIG — pointe vers ton serveur ARCH
 // ══════════════════════════════════════════════════
 const ARCH_API  = 'https://arch-production.up.railway.app';
-const HUB_API   = window.location.origin; // ce serveur
 
 let token    = localStorage.getItem('hub_token') || '';
 let username = localStorage.getItem('hub_user')  || '';
@@ -531,18 +530,6 @@ let totalLosses = 0;
 // ── API HELPERS ───────────────────────────────────
 async function archFetch(path, opts = {}) {
   const res = await fetch(ARCH_API + path, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token,
-      ...(opts.headers || {}),
-    },
-  });
-  return res.json();
-}
-
-async function hubFetch(path, opts = {}) {
-  const res = await fetch(HUB_API + path, {
     ...opts,
     headers: {
       'Content-Type': 'application/json',
@@ -599,16 +586,28 @@ async function refreshBalance() {
 }
 
 // ── AUTO LOGIN ────────────────────────────────────
-if (token) showHub();
+if (token) {
+  archFetch('/api/me').then(data => {
+    if (data.username) {
+      username = data.username;
+      showHub();
+    } else {
+      doLogout();
+    }
+  });
+}
 
 // ── UTILS ─────────────────────────────────────────
 function setMax(inputId) {
+  if (balance <= 0) return;
   document.getElementById(inputId).value = balance.toFixed(6);
 }
 
 function openGame(game) {
   document.getElementById('modal' + game.charAt(0).toUpperCase() + game.slice(1)).classList.add('open');
-  document.getElementById(game === 'coinflip' ? 'cfResult' : 'diceResult').style.display = 'none';
+  const resultMap = { coinflip: 'cfResult', dice: 'diceResult', slots: 'slotsResult', blackjack: 'bjResult' };
+  const resultEl = document.getElementById(resultMap[game]);
+  if (resultEl) resultEl.style.display = 'none';
 }
 
 function closeModal(id) {
@@ -663,49 +662,39 @@ async function playCoinflip() {
 
   btn.disabled = true;
 
-  // Débit via API
-  const debit = await archFetch('/api/transfer', {
-    method: 'POST',
-    body: JSON.stringify({ to: '__house__', amount: stakeVal, reason: 'coinflip' }),
-  });
-
-  if (!debit.ok) {
-    errEl.textContent = debit.error || 'Erreur de transfert.';
-    btn.disabled = false;
-    return;
-  }
-
-  balance = debit.balance;
-  document.getElementById('walletBalance').textContent = balance.toFixed(6);
-
-  // Animation pièce
+  // Animation pièce pendant qu'on attend le serveur
   const coin = document.getElementById('coinFace');
   const faces = ['🪙','⭕','🔵','⚪','🟢'];
   let i = 0;
   coin.classList.add('flipping');
   const anim = setInterval(() => { coin.textContent = faces[i++ % faces.length]; }, 80);
 
-  await new Promise(r => setTimeout(r, 1800));
+  // Appel serveur — tirage + transaction atomique
+  const data = await archFetch('/api/game/coinflip', {
+    method: 'POST',
+    body: JSON.stringify({ choice: cfChoice, amount: stakeVal }),
+  });
+
+  await new Promise(r => setTimeout(r, 600));
   clearInterval(anim);
   coin.classList.remove('flipping');
 
-  // Résultat côté client (50/50)
-  const result = Math.random() < 0.5 ? 'PILE' : 'FACE';
-  const won    = result === cfChoice;
+  if (!data.ok) {
+    errEl.textContent = data.error || 'Erreur serveur.';
+    coin.textContent = '🪙';
+    btn.disabled = false;
+    return;
+  }
+
+  const { result, won } = data;
   coin.textContent = result === 'PILE' ? '⬆' : '⬇';
+  balance = data.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
 
   if (won) {
     const gain = parseFloat((stakeVal * 2).toFixed(6));
-    // Crédit
-    const credit = await archFetch('/api/transfer', {
-      method: 'POST',
-      body: JSON.stringify({ from: '__house__', amount: gain, reason: 'coinflip_win' }),
-    });
-    balance = credit.balance ?? balance + gain;
-    document.getElementById('walletBalance').textContent = balance.toFixed(6);
     totalWins += gain;
     document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
-
     resultEl.className = 'result-box result-win';
     resultEl.innerHTML = `✓ ${result} — TU GAGNES !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
     addHist(`COINFLIP — ${cfChoice} vs ${result} — +${gain.toFixed(6)} ARCH`, 'hist-win');
@@ -750,47 +739,38 @@ async function playDice() {
 
   btn.disabled = true;
 
-  // Débit
-  const debit = await archFetch('/api/transfer', {
-    method: 'POST',
-    body: JSON.stringify({ to: '__house__', amount: stakeVal, reason: 'dice' }),
-  });
-
-  if (!debit.ok) {
-    errEl.textContent = debit.error || 'Erreur de transfert.';
-    btn.disabled = false;
-    return;
-  }
-
-  balance = debit.balance;
-  document.getElementById('walletBalance').textContent = balance.toFixed(6);
-
-  // Animation dé
+  // Animation dé pendant qu'on attend le serveur
   const faceEl = document.getElementById('diceFace');
   faceEl.classList.add('rolling');
   let j = 0;
   const anim = setInterval(() => { faceEl.textContent = diceFaces[j++ % 6]; }, 90);
 
-  await new Promise(r => setTimeout(r, 1600));
+  // Appel serveur — tirage + transaction atomique
+  const data = await archFetch('/api/game/dice', {
+    method: 'POST',
+    body: JSON.stringify({ choice: diceChoice, amount: stakeVal }),
+  });
+
+  await new Promise(r => setTimeout(r, 600));
   clearInterval(anim);
   faceEl.classList.remove('rolling');
 
-  const rolled = Math.floor(Math.random() * 6) + 1;
-  faceEl.textContent = diceFaces[rolled - 1];
+  if (!data.ok) {
+    errEl.textContent = data.error || 'Erreur serveur.';
+    faceEl.textContent = '🎲';
+    btn.disabled = false;
+    return;
+  }
 
-  const won = rolled === diceChoice;
+  const { rolled, won } = data;
+  faceEl.textContent = diceFaces[rolled - 1];
+  balance = data.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
 
   if (won) {
     const gain = parseFloat((stakeVal * 5).toFixed(6));
-    const credit = await archFetch('/api/transfer', {
-      method: 'POST',
-      body: JSON.stringify({ from: '__house__', amount: gain, reason: 'dice_win' }),
-    });
-    balance = credit.balance ?? balance + gain;
-    document.getElementById('walletBalance').textContent = balance.toFixed(6);
     totalWins += gain;
     document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
-
     resultEl.className = 'result-box result-win';
     resultEl.innerHTML = `✓ ${diceFaces[rolled-1]} — TU GAGNES !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
     addHist(`DICE — choix ${diceChoice} vs ${rolled} — +${gain.toFixed(6)} ARCH`, 'hist-win');
@@ -835,17 +815,15 @@ async function playSlots() {
 
   btn.disabled = true;
 
-  // Débit
-  const debit = await archFetch('/api/transfer', {
+  // Appel serveur — tirage + transaction atomique
+  const data = await archFetch('/api/game/slots', {
     method: 'POST',
-    body: JSON.stringify({ to: '__house__', amount: stakeVal, reason: 'slots' }),
+    body: JSON.stringify({ amount: stakeVal }),
   });
-  if (!debit.ok) { errEl.textContent = debit.error || 'Erreur.'; btn.disabled = false; return; }
-  balance = debit.balance;
-  document.getElementById('walletBalance').textContent = balance.toFixed(6);
 
-  // Tirage final
-  const results = [randSym(), randSym(), randSym()];
+  if (!data.ok) { errEl.textContent = data.error || 'Erreur.'; btn.disabled = false; return; }
+
+  const results = data.reels; // [{ sym, name, mult }, ...]
 
   // Animation rouleaux
   const reels = [document.getElementById('reel0'), document.getElementById('reel1'), document.getElementById('reel2')];
@@ -854,7 +832,7 @@ async function playSlots() {
 
   reels.forEach(r => { r.classList.add('spinning-reel'); r.classList.remove('win-reel','jackpot-reel'); });
 
-  const intervals = syms.map((s, i) => setInterval(() => {
+  const intervals = syms.map((s) => setInterval(() => {
     s.textContent = randSym().sym;
   }, 80));
 
@@ -865,34 +843,18 @@ async function playSlots() {
     reels[i].classList.remove('spinning-reel');
   }
 
-  // Calcul résultat
+  const { mult, label, netDelta } = data;
   const [a, b, c] = results;
-  let mult = 0;
-  let label = '';
-  let isJackpot = false;
+  const isJackpot = mult >= 50;
 
-  if (a.sym === b.sym && b.sym === c.sym) {
-    mult = a.mult;
-    label = `3x ${a.name}`;
-    isJackpot = a.mult >= 50;
-    reels.forEach(r => r.classList.add(isJackpot ? 'jackpot-reel' : 'win-reel'));
-  } else if (a.sym === b.sym || b.sym === c.sym || a.sym === c.sym) {
-    mult = 0.5;
-    label = '2 identiques';
-    reels.forEach(r => r.classList.add('win-reel'));
-  }
+  balance = data.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
 
   if (mult > 0) {
     const gain = parseFloat((stakeVal * mult).toFixed(6));
-    const credit = await archFetch('/api/transfer', {
-      method: 'POST',
-      body: JSON.stringify({ from: '__house__', amount: gain, reason: 'slots_win' }),
-    });
-    balance = credit.balance ?? balance + gain;
-    document.getElementById('walletBalance').textContent = balance.toFixed(6);
+    reels.forEach(r => r.classList.add(isJackpot ? 'jackpot-reel' : 'win-reel'));
     totalWins += gain;
     document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
-
     resultEl.className = 'result-box result-win';
     resultEl.innerHTML = `✓ ${label} — x${mult}<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
     addHist(`SLOTS — ${a.sym}${b.sym}${c.sym} — +${gain.toFixed(6)} ARCH`, isJackpot ? 'hist-big' : 'hist-win');

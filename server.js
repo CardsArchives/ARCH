@@ -286,6 +286,106 @@ async function api(req, res) {
     return json(res, 400, { error: 'Transfert non autorisé.' });
   }
 
+
+  // GAME — COINFLIP (résultat serveur)
+  if (endpoint === '/api/game/coinflip' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { choice, amount } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    if (!['PILE','FACE'].includes(choice)) return json(res, 400, { error: 'Choix invalide.' });
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+    if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+
+    const result = Math.random() < 0.5 ? 'PILE' : 'FACE';
+    const won    = result === choice;
+
+    if (won) {
+      const gain = parseFloat((amt * 2).toFixed(6));
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain - amt, user.username]);
+      await addHistory(user.username, gain - amt, 'coinflip_win');
+    } else {
+      await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+      await addHistory(user.username, -amt, 'coinflip_lose');
+    }
+
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[COINFLIP] ${user.username} → ${choice} vs ${result} — ${won ? '+' + amt.toFixed(6) : '-' + amt.toFixed(6)} ARCH`);
+    return json(res, 200, { ok: true, result, won, balance: updated.rows[0].balance });
+  }
+
+  // GAME — DICE (résultat serveur)
+  if (endpoint === '/api/game/dice' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { choice, amount } = await body(req);
+    const choiceNum = parseInt(choice);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    if (isNaN(choiceNum) || choiceNum < 1 || choiceNum > 6) return json(res, 400, { error: 'Choix invalide.' });
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+    if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+
+    const rolled = Math.floor(Math.random() * 6) + 1;
+    const won    = rolled === choiceNum;
+
+    if (won) {
+      const gain = parseFloat((amt * 5).toFixed(6));
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [gain - amt, user.username]);
+      await addHistory(user.username, gain - amt, 'dice_win');
+    } else {
+      await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+      await addHistory(user.username, -amt, 'dice_lose');
+    }
+
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[DICE] ${user.username} → ${choiceNum} vs ${rolled} — ${won ? '+' + (amt * 4).toFixed(6) : '-' + amt.toFixed(6)} ARCH`);
+    return json(res, 200, { ok: true, rolled, won, balance: updated.rows[0].balance });
+  }
+
+  // GAME — SLOTS (résultat serveur)
+  if (endpoint === '/api/game/slots' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { amount } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+    if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+
+    const SLOT_SYMS = [
+      { sym: '◈', name: 'ARCH',    mult: 50, weight: 1  },
+      { sym: '💎', name: 'DIAMANT', mult: 20, weight: 2  },
+      { sym: '⭐', name: 'ÉTOILE',  mult: 10, weight: 4  },
+      { sym: '🔷', name: 'CRISTAL', mult: 5,  weight: 7  },
+      { sym: '🟢', name: 'NOEUD',  mult: 3,  weight: 14 },
+      { sym: '🔲', name: 'BLOC',   mult: 2,  weight: 22 },
+    ];
+    const pool = SLOT_SYMS.flatMap(s => Array(s.weight).fill(s));
+    const randSym = () => pool[Math.floor(Math.random() * pool.length)];
+    const reels = [randSym(), randSym(), randSym()];
+    const [a, b, c] = reels;
+
+    let mult = 0;
+    let label = '';
+    if (a.sym === b.sym && b.sym === c.sym) { mult = a.mult; label = '3x ' + a.name; }
+    else if (a.sym === b.sym || b.sym === c.sym || a.sym === c.sym) { mult = 0.5; label = '2 identiques'; }
+
+    let netDelta = 0;
+    if (mult > 0) {
+      const gain = parseFloat((amt * mult).toFixed(6));
+      netDelta = parseFloat((gain - amt).toFixed(6));
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $2 WHERE username = $3', [netDelta, netDelta > 0 ? netDelta : 0, user.username]);
+      await addHistory(user.username, netDelta, 'slots_win');
+    } else {
+      netDelta = -amt;
+      await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+      await addHistory(user.username, -amt, 'slots_lose');
+    }
+
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[SLOTS] ${user.username} → ${reels.map(r=>r.sym).join('')} mult:${mult} netDelta:${netDelta}`);
+    return json(res, 200, { ok: true, reels: reels.map(r => ({ sym: r.sym, name: r.name, mult: r.mult })), mult, label, netDelta, balance: updated.rows[0].balance });
+  }
+
   // ADMIN
   if (endpoint === '/api/admin/users' && req.method === 'GET') {
     if (url.searchParams.get('pass') !== CONFIG.adminPass)
