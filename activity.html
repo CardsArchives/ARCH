@@ -232,9 +232,17 @@
 import { DiscordSDK } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/+esm';
 
 const CLIENT_ID = '__DISCORD_CLIENT_ID__';
-const SERVER_URL = '__SERVER_URL__'; // Injecté par le serveur
-// Si __SERVER_URL__ n'est pas injecté, utiliser location.origin en fallback
-window.__SERVER_URL__ = SERVER_URL !== '__SERVER_URL__' ? SERVER_URL : location.origin;
+const SERVER_URL = '__SERVER_URL__';  // ← Placeholder pour l'injection serveur
+
+// Vérifier si SERVER_URL a été injecté par le serveur
+let INJECTED_SERVER_URL = null;
+if (SERVER_URL && SERVER_URL !== '__SERVER_URL__') {
+  INJECTED_SERVER_URL = SERVER_URL;
+  console.log('✅ SERVER_URL injecté:', INJECTED_SERVER_URL);
+} else {
+  console.log('⚠️ SERVER_URL pas injecté, utilisant location.origin');
+  INJECTED_SERVER_URL = location.origin;
+}
 
 const discordSdk = new DiscordSDK(CLIENT_ID);
 
@@ -313,24 +321,36 @@ async function init() {
 // ── WebSocket ─────────────────────────────────────────
 async function connectWS() {
   return new Promise(resolve => {
-    // En Discord Activity: utiliser l'URL du serveur depuis window.__SERVER_URL__
-    // Si window.__SERVER_URL__ n'existe pas, essayer location.host en fallback
-    let serverUrl = window.__SERVER_URL__ || location.host;
+    // Construire l'URL WebSocket
+    let wsUrl = INJECTED_SERVER_URL;
     
-    // Assurer que serverUrl inclut le protocole
-    if (!serverUrl.startsWith('http')) {
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      serverUrl = proto + '//' + serverUrl;
+    // S'assurer que wsUrl commence par http:// ou https://
+    if (!wsUrl.startsWith('http')) {
+      wsUrl = location.protocol + '//' + wsUrl;
     }
     
-    // Convertir http/https en ws/wss
-    serverUrl = serverUrl.replace(/^https?:/, location.protocol === 'https:' ? 'wss:' : 'ws:');
+    // Convertir http en ws, https en wss
+    wsUrl = wsUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
     
-    ws = new WebSocket(`${serverUrl}/ws?token=${token}`);
-    ws.onopen  = () => resolve();
-    ws.onerror = () => resolve();
+    // Ajouter le chemin WebSocket
+    wsUrl = wsUrl + '/ws?token=' + token;
+    
+    console.log('🔌 WebSocket URL:', wsUrl);
+    
+    ws = new WebSocket(wsUrl);
+    ws.onopen  = () => {
+      console.log('✅ WebSocket connecté');
+      resolve();
+    };
+    ws.onerror = (err) => {
+      console.error('❌ WebSocket erreur:', err);
+      resolve();
+    };
     ws.onmessage = e => handleWS(JSON.parse(e.data));
-    ws.onclose = () => setTimeout(connectWS, 3000);
+    ws.onclose = () => {
+      console.log('⚠️ WebSocket fermé, reconnexion dans 3s...');
+      setTimeout(connectWS, 3000);
+    };
     setTimeout(resolve, 2500);
   });
 }
