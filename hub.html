@@ -712,13 +712,20 @@ async function playDice(){
 // ════ SLOTS 5x3 ════
 // Symboles SVG inline dans la direction artistique ARCH (monochrome vert/noir)
 const SLOT_SVG = {
-  0: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,2 24,14 38,14 27,22 31,36 20,28 9,36 13,22 2,14 16,14" fill="none" stroke="#00ff41" stroke-width="2"/><text x="20" y="24" text-anchor="middle" font-size="9" fill="#00ff41" font-family="monospace" font-weight="900">ARCH</text></svg>`,
+  // ARCH — logo exact (losange externe plein or + losange intérieur creux noir) en or
+  0: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,2 38,20 20,38 2,20" fill="#ffe066" stroke="#cc9900" stroke-width="0.5"/><polygon points="20,11 29,20 20,29 11,20" fill="#000" stroke="#cc9900" stroke-width="0.5"/><polygon points="20,16 24,20 20,24 16,20" fill="#ffe066"/></svg>`,
+  // NODE — cercles concentriques
   1: `<svg viewBox="0 0 40 40" class="slot-sym"><circle cx="20" cy="20" r="14" fill="none" stroke="#00ff41" stroke-width="1.5"/><circle cx="20" cy="20" r="8" fill="none" stroke="#00cc33" stroke-width="1"/><circle cx="20" cy="20" r="3" fill="#00ff41"/><line x1="6" y1="20" x2="34" y2="20" stroke="#00ff4155" stroke-width="1"/><line x1="20" y1="6" x2="20" y2="34" stroke="#00ff4155" stroke-width="1"/></svg>`,
+  // BLOCK — carrés emboîtés
   2: `<svg viewBox="0 0 40 40" class="slot-sym"><rect x="8" y="8" width="24" height="24" fill="none" stroke="#00ff41" stroke-width="1.5"/><rect x="13" y="13" width="14" height="14" fill="none" stroke="#00cc33" stroke-width="1"/><rect x="17" y="17" width="6" height="6" fill="#00ff41"/></svg>`,
+  // CRYSTAL — losanges emboîtés
   3: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,4 36,20 20,36 4,20" fill="none" stroke="#00ff41" stroke-width="1.5"/><polygon points="20,10 30,20 20,30 10,20" fill="none" stroke="#00cc33" stroke-width="1"/><polygon points="20,16 24,20 20,24 16,20" fill="#00ff41"/></svg>`,
+  // STAR — étoile remplie
   4: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,3 22,14 34,14 25,21 28,33 20,26 12,33 15,21 6,14 18,14" fill="#003300" stroke="#00ff41" stroke-width="1.5"/><line x1="20" y1="7" x2="20" y2="12" stroke="#00ff41" stroke-width="1.5"/><line x1="24" y1="9" x2="26" y2="13" stroke="#00ff41" stroke-width="1.5"/></svg>`,
-  5: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="20,4 24,16 38,16 27,24 31,38 20,30 9,38 13,24 2,16 16,16" fill="#002200" stroke="#00ff41" stroke-width="1.8"/><polygon points="20,10 22,17 30,17 24,21 26,29 20,24 14,29 16,21 10,17 18,17" fill="#00ff41"/></svg>`,
-  6: `<svg viewBox="0 0 40 40" class="slot-sym"><circle cx="20" cy="20" r="15" fill="none" stroke="#004400" stroke-width="1.5" stroke-dasharray="4,2"/><circle cx="20" cy="20" r="8" fill="none" stroke="#00ff4155" stroke-width="1" stroke-dasharray="3,2"/><text x="20" y="25" text-anchor="middle" font-size="14" fill="#00ff4188" font-family="monospace">?</text></svg>`,
+  // DIAMOND — vrai diamant (gemme taillée vue de face)
+  5: `<svg viewBox="0 0 40 40" class="slot-sym"><polygon points="12,14 20,5 28,14" fill="#002200" stroke="#00ff41" stroke-width="1.5"/><polygon points="12,14 28,14 24,35 16,35" fill="#003300" stroke="#00ff41" stroke-width="1.5"/><line x1="12" y1="14" x2="20" y2="22" stroke="#00ff4188" stroke-width="1"/><line x1="28" y1="14" x2="20" y2="22" stroke="#00ff4188" stroke-width="1"/><line x1="20" y1="22" x2="16" y2="35" stroke="#00ff4155" stroke-width="0.8"/><line x1="20" y1="22" x2="24" y2="35" stroke="#00ff4155" stroke-width="0.8"/><line x1="20" y1="5" x2="20" y2="22" stroke="#00ff4166" stroke-width="0.8"/></svg>`,
+  // VOID — spirale
+  6: `<svg viewBox="0 0 40 40" class="slot-sym"><path d="M20,20 m0,-11 a11,11 0 1,1 -0.1,0 M20,20 m0,-7 a7,7 0 1,1 -0.1,0 M20,20 m0,-3.5 a3.5,3.5 0 1,1 -0.1,0" fill="none" stroke="#00ff4199" stroke-width="1.2"/><path d="M20,9 Q31,9 31,20 Q31,31 20,31 Q9,31 9,20 Q9,12 15,10" fill="none" stroke="#00ff41" stroke-width="1.5" stroke-linecap="round"/><path d="M20,13 Q27,13 27,20 Q27,27 20,27 Q13,27 13,20 Q13,15 17,13.5" fill="none" stroke="#00cc33" stroke-width="1.2" stroke-linecap="round"/><path d="M20,17 Q23,17 23,20 Q23,23 20,23 Q17,23 17,20 Q17,18 19,17.5" fill="none" stroke="#008f11" stroke-width="1" stroke-linecap="round"/><circle cx="20" cy="20" r="1.2" fill="#00ff41"/></svg>`,
 };
 
 // Config des lignes de paiement (positions [col, row])
