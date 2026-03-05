@@ -616,8 +616,32 @@ async function api(req, res) {
     return json(res, 200, { ok: true, reward: parseFloat(reward) });
   }
 
+  // GAME — PAID BONUS WHEEL (buy-in 1000 ARCH)
+  if (endpoint === '/api/game/bonus-wheel' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const BUY_IN = 1000;
+    if (user.balance < BUY_IN) return json(res, 400, { error: `Solde insuffisant. Coût : ${BUY_IN} ARCH.` });
+    // Debit buy-in
+    await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [BUY_IN, user.username]);
+    await addHistory(user.username, -BUY_IN, 'bonus_wheel_buyin');
+    // Generate reward — same distribution as slots bonus but jackpot more accessible
+    const r = Math.random();
+    let reward;
+    if      (r < 0.40) reward = parseFloat((Math.random() * 400  + 100).toFixed(6));   // 40% → 100-500 ARCH
+    else if (r < 0.70) reward = parseFloat((Math.random() * 500  + 500).toFixed(6));   // 30% → 500-1000 ARCH
+    else if (r < 0.90) reward = parseFloat((Math.random() * 4000 + 1000).toFixed(6));  // 20% → 1000-5000 ARCH
+    else if (r < 0.99) reward = parseFloat((Math.random() * 15000 + 5000).toFixed(6)); // 9%  → 5000-20000 ARCH
+    else               reward = parseFloat((Math.random() * 980000 + 20000).toFixed(6));// 1%  → 20000-1000000 ARCH (JACKPOT)
+    await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [reward, user.username]);
+    await addHistory(user.username, reward, 'bonus_wheel_reward');
+    const xpGained = await addXp(user.username, 'slots_bonus');
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[BONUS WHEEL] ${user.username} buy-in:${BUY_IN} → reward:${reward} ARCH`);
+    return json(res, 200, { ok: true, reward, balance: updated.rows[0].balance, xp_gained: xpGained });
+  }
 
-  // GAME — BLACKJACK (résultat serveur)
+
   if (endpoint === '/api/game/blackjack' && req.method === 'POST') {
     const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
