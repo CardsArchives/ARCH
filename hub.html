@@ -346,6 +346,7 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
       <div style="display:flex;gap:8px;align-items:center;">
         <button class="btn-xs" style="border-color:var(--gold);color:var(--gold);" onclick="openPerks()">&#9670; PERKS</button>
         <a href="https://arch-production.up.railway.app" class="btn-xs">&#9670; WALLET</a>
+        <button class="btn-xs" id="btnSound" onclick="openSoundSettings()" title="Son">&#9836;</button>
         <button class="btn-xs" onclick="doLogout()">DECONNEXION</button>
       </div>
     </div>
@@ -2466,6 +2467,575 @@ async function playCrash(){
   }
   resEl.style.display='block';btn.disabled=false;
 }
+
+// ══════════════════════════════════════════════════════
+//  ARCH SOUND ENGINE — Web Audio API (cyber/lo-fi)
+// ══════════════════════════════════════════════════════
+const SFX = (() => {
+  let ctx = null;
+  let masterGain = null;
+  let muted = false;
+  let volume = parseFloat(localStorage.getItem('arch_vol') ?? '0.5');
+
+  function init() {
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = ctx.createGain();
+    masterGain.gain.value = muted ? 0 : volume;
+    masterGain.connect(ctx.destination);
+  }
+
+  function resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); }
+
+  // Low-level tone builder
+  function tone(freq, type, startTime, duration, gainVal, opts = {}) {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startTime);
+    if (opts.freqEnd) osc.frequency.linearRampToValueAtTime(opts.freqEnd, startTime + duration);
+    if (opts.detune)  osc.detune.setValueAtTime(opts.detune, startTime);
+
+    // Optional filter
+    let node = g;
+    if (opts.filter) {
+      const f = ctx.createBiquadFilter();
+      f.type = opts.filter.type || 'lowpass';
+      f.frequency.value = opts.filter.freq || 1200;
+      f.Q.value = opts.filter.Q || 1;
+      g.connect(f); f.connect(masterGain); node = g;
+    } else {
+      g.connect(masterGain);
+    }
+
+    g.gain.setValueAtTime(0, startTime);
+    g.gain.linearRampToValueAtTime(gainVal, startTime + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    osc.connect(g);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.01);
+  }
+
+  // Noise burst (for whoosh/glitch)
+  function noise(startTime, duration, gainVal, filterFreq = 800) {
+    const bufSize = ctx.sampleRate * duration;
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = filterFreq;
+    f.Q.value = 2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gainVal, startTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    src.connect(f); f.connect(g); g.connect(masterGain);
+    src.start(startTime);
+    src.stop(startTime + duration + 0.01);
+  }
+
+  // ── Sound definitions ─────────────────────────────
+  const sounds = {
+
+    // UI
+    click() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(880, 'square', t, 0.06, 0.12, { filter: { type: 'highpass', freq: 600 } });
+      tone(440, 'square', t + 0.03, 0.05, 0.06);
+    },
+    hover() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(1200, 'sine', t, 0.04, 0.04);
+    },
+    locked() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(180, 'sawtooth', t, 0.12, 0.15, { freqEnd: 120 });
+      noise(t, 0.08, 0.05, 200);
+    },
+    modalOpen() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(440, 'sine', t,       0.08, 0.12);
+      tone(660, 'sine', t + 0.07, 0.08, 0.10);
+      tone(880, 'sine', t + 0.13, 0.10, 0.08);
+    },
+    modalClose() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(880, 'sine', t,       0.07, 0.08);
+      tone(440, 'sine', t + 0.06, 0.09, 0.07);
+    },
+
+    // XP / Level
+    xpGain() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(1320, 'sine', t, 0.10, 0.08, { freqEnd: 1760 });
+    },
+    levelUp() {
+      init(); resume(); const t = ctx.currentTime;
+      // Cyber fanfare : arpegio montant + chord
+      [261, 329, 392, 523, 659, 784, 1046].forEach((f, i) => {
+        tone(f, 'sawtooth', t + i * 0.07, 0.18, 0.10, { filter: { type: 'lowpass', freq: 2000 } });
+      });
+      tone(1046, 'square', t + 0.5, 0.4, 0.08);
+      noise(t + 0.48, 0.35, 0.06, 3000);
+    },
+
+    // Coin Flip
+    coinFlip() {
+      init(); resume(); const t = ctx.currentTime;
+      // Spin ticking
+      for (let i = 0; i < 8; i++) {
+        tone(600 + i * 80, 'square', t + i * 0.045, 0.04, 0.07);
+      }
+    },
+    coinWin() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(523, 'sine', t,       0.12, 0.15);
+      tone(659, 'sine', t + 0.1, 0.12, 0.13);
+      tone(784, 'sine', t + 0.2, 0.18, 0.12, { freqEnd: 1046 });
+    },
+    coinLose() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(300, 'sawtooth', t, 0.20, 0.14, { freqEnd: 150 });
+      noise(t + 0.05, 0.15, 0.06, 300);
+    },
+
+    // Dice
+    diceRoll() {
+      init(); resume(); const t = ctx.currentTime;
+      for (let i = 0; i < 5; i++) {
+        const f = 200 + Math.random() * 300;
+        noise(t + i * 0.05, 0.04, 0.08, f);
+      }
+    },
+    diceWin()  { sounds.coinWin(); },
+    diceLose() { sounds.coinLose(); },
+
+    // Slots
+    slotsStart() {
+      init(); resume(); const t = ctx.currentTime;
+      // Mechanical whirl
+      for (let i = 0; i < 12; i++) {
+        tone(80 + i * 30, 'sawtooth', t + i * 0.04, 0.06, 0.06,
+          { filter: { type: 'bandpass', freq: 400 + i * 50 } });
+      }
+    },
+    slotsTick() {
+      init(); resume(); const t = ctx.currentTime;
+      noise(t, 0.03, 0.05, 1200);
+    },
+    slotsWin() {
+      init(); resume(); const t = ctx.currentTime;
+      [523, 659, 784, 1046, 1318].forEach((f, i) => {
+        tone(f, 'square', t + i * 0.08, 0.14, 0.09,
+          { filter: { type: 'lowpass', freq: 1800 } });
+      });
+    },
+    slotsBonus() {
+      init(); resume(); const t = ctx.currentTime;
+      // Big bonus alarm
+      for (let i = 0; i < 6; i++) {
+        tone(880 + (i % 2) * 440, 'square', t + i * 0.12, 0.10, 0.12);
+      }
+      noise(t, 0.5, 0.06, 2000);
+      [261, 392, 523, 659, 784, 1046, 1318, 1568].forEach((f, i) => {
+        tone(f, 'sawtooth', t + 0.55 + i * 0.06, 0.15, 0.08);
+      });
+    },
+    slotsLose() { sounds.coinLose(); },
+
+    // Blackjack
+    bjDeal() {
+      init(); resume(); const t = ctx.currentTime;
+      // Card swipe
+      noise(t, 0.06, 0.10, 2000);
+      tone(440, 'sine', t + 0.04, 0.05, 0.07);
+    },
+    bjHit() {
+      init(); resume(); const t = ctx.currentTime;
+      noise(t, 0.05, 0.09, 2400);
+      tone(520, 'sine', t + 0.03, 0.04, 0.06);
+    },
+    bjBust() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(220, 'sawtooth', t, 0.25, 0.14, { freqEnd: 100 });
+      noise(t + 0.1, 0.2, 0.07, 250);
+    },
+    bjWin() { sounds.coinWin(); },
+    bjLose() { sounds.coinLose(); },
+    bjBlackjack() {
+      init(); resume(); const t = ctx.currentTime;
+      noise(t, 0.08, 0.07, 2500);
+      [523, 659, 784, 1046, 1318, 1568].forEach((f, i) => {
+        tone(f, 'sine', t + 0.06 + i * 0.07, 0.16, 0.11);
+      });
+    },
+
+    // Mines
+    minesReveal() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(800, 'sine', t, 0.06, 0.08, { freqEnd: 1000 });
+    },
+    minesBoom() {
+      init(); resume(); const t = ctx.currentTime;
+      // Explosion
+      noise(t, 0.05, 0.25, 100);
+      noise(t + 0.04, 0.15, 0.20, 200);
+      tone(80, 'sawtooth', t, 0.30, 0.20, { freqEnd: 40 });
+      tone(160, 'sawtooth', t, 0.20, 0.15, { freqEnd: 60 });
+    },
+    minesCashout() {
+      init(); resume(); const t = ctx.currentTime;
+      sounds.coinWin();
+      noise(t + 0.3, 0.12, 0.06, 1800);
+    },
+
+    // Crash
+    crashStart() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(220, 'sawtooth', t, 0.12, 0.10, { freqEnd: 440,
+        filter: { type: 'lowpass', freq: 800 } });
+    },
+    crashTick() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(200 + Math.random() * 100, 'sine', t, 0.04, 0.04);
+    },
+    crashWin() {
+      init(); resume(); const t = ctx.currentTime;
+      noise(t, 0.06, 0.06, 1500);
+      sounds.coinWin();
+    },
+    crashBoom() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(300, 'sawtooth', t, 0.08, 0.18, { freqEnd: 50 });
+      noise(t, 0.35, 0.20, 150);
+      noise(t + 0.1, 0.25, 0.12, 400);
+    },
+
+    // Roulette
+    rouletteStart() {
+      init(); resume(); const t = ctx.currentTime;
+      // Ball spinning - descending ticks
+      for (let i = 0; i < 16; i++) {
+        const delay = i * (0.06 + i * 0.008);
+        noise(t + delay, 0.03, 0.07 - i * 0.003, 2000 - i * 50);
+      }
+    },
+    rouletteWin()  { sounds.coinWin(); },
+    rouletteLose() { sounds.coinLose(); },
+
+    // Plinko
+    plinkoBounce() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(600 + Math.random() * 400, 'sine', t, 0.04, 0.06);
+    },
+    plinkoLand() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(300, 'sine', t, 0.10, 0.10, { freqEnd: 200 });
+      noise(t, 0.06, 0.05, 800);
+    },
+    plinkoWin()  { sounds.coinWin(); },
+    plinkoLose() { sounds.coinLose(); },
+
+    // Keno
+    kenoDraw() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(660 + Math.random() * 220, 'sine', t, 0.05, 0.07);
+    },
+    kenoHit() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(880, 'sine', t, 0.07, 0.10, { freqEnd: 1100 });
+    },
+    kenoWin()  { sounds.coinWin(); },
+    kenoLose() { sounds.coinLose(); },
+
+    // Poker
+    pokerDeal() {
+      init(); resume(); const t = ctx.currentTime;
+      for (let i = 0; i < 5; i++) {
+        noise(t + i * 0.06, 0.05, 0.09, 2200);
+        tone(380 + i * 30, 'sine', t + i * 0.06 + 0.03, 0.04, 0.05);
+      }
+    },
+    pokerHold() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(660, 'sine', t, 0.07, 0.08);
+    },
+    pokerDraw() {
+      init(); resume(); const t = ctx.currentTime;
+      noise(t, 0.05, 0.08, 2000);
+      tone(440, 'sine', t + 0.03, 0.05, 0.06);
+    },
+    pokerWin()  { sounds.coinWin(); },
+    pokerLose() { sounds.coinLose(); },
+
+    // Scratch
+    scratchSound() {
+      init(); resume(); const t = ctx.currentTime;
+      noise(t, 0.12, 0.12, 1500);
+      noise(t + 0.05, 0.08, 0.08, 2200);
+    },
+    scratchReveal() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(800, 'sine', t, 0.06, 0.08, { freqEnd: 1000 });
+    },
+    scratchWin()  { sounds.slotsWin(); },
+    scratchLose() { sounds.coinLose(); },
+
+    // Tower
+    towerStep() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(440 + Math.random() * 200, 'square', t, 0.07, 0.08,
+        { filter: { type: 'bandpass', freq: 800 } });
+    },
+    towerFall() {
+      init(); resume(); const t = ctx.currentTime;
+      sounds.minesBoom();
+    },
+    towerCashoutSfx() {
+      init(); resume(); const t = ctx.currentTime;
+      sounds.minesCashout();
+    },
+
+    // Cashback
+    cashback() {
+      init(); resume(); const t = ctx.currentTime;
+      tone(440, 'sine', t,       0.08, 0.08);
+      tone(554, 'sine', t + 0.07, 0.08, 0.08);
+      tone(659, 'sine', t + 0.14, 0.10, 0.08);
+    },
+  };
+
+  return {
+    play(name, ...args) {
+      if (muted || !sounds[name]) return;
+      try { sounds[name](...args); } catch(e) { /* ignore audio errors */ }
+    },
+    setVolume(v) {
+      volume = Math.max(0, Math.min(1, v));
+      localStorage.setItem('arch_vol', volume);
+      if (masterGain) masterGain.gain.value = muted ? 0 : volume;
+    },
+    setMuted(m) {
+      muted = m;
+      localStorage.setItem('arch_muted', m ? '1' : '0');
+      if (masterGain) masterGain.gain.value = muted ? 0 : volume;
+      const btn = document.getElementById('btnSound');
+      if (btn) btn.style.opacity = muted ? '0.35' : '1';
+    },
+    getVolume() { return volume; },
+    isMuted()   { return muted; },
+    init,
+  };
+})();
+
+// Restore mute state
+if (localStorage.getItem('arch_muted') === '1') SFX.setMuted(true);
+
+// Init audio context on first user interaction
+document.addEventListener('click', () => SFX.init(), { once: true });
+
+// ── Sound Settings Modal ──────────────────────────────
+function openSoundSettings() {
+  SFX.play('modalOpen');
+  document.getElementById('modalSound').classList.add('open');
+  document.getElementById('volSlider').value = Math.round(SFX.getVolume() * 100);
+  document.getElementById('volDisplay').textContent = Math.round(SFX.getVolume() * 100) + '%';
+  document.getElementById('muteCheck').checked = SFX.isMuted();
+}
+
+// ── Hook: modal open/close ──────────────────────────
+const _origOpenGame = openGame;
+openGame = function(game) {
+  SFX.play('modalOpen');
+  _origOpenGame(game);
+};
+const _origCloseModal = closeModal;
+closeModal = function(id) {
+  SFX.play('modalClose');
+  _origCloseModal(id);
+};
+
+// ── Hook: game card clicks ───────────────────────────
+document.querySelectorAll('.game-card[data-game]').forEach(card => {
+  card.addEventListener('mouseenter', () => {
+    if (!card.classList.contains('locked')) SFX.play('hover');
+  });
+});
+// Locked card click sound
+document.querySelectorAll('.game-card.locked').forEach(card => {
+  card.addEventListener('click', () => SFX.play('locked'));
+});
+// Observe future lock changes
+const lockObserver = new MutationObserver(mutations => {
+  mutations.forEach(m => {
+    if (m.target.classList && m.target.classList.contains('locked')) {
+      m.target.addEventListener('click', () => SFX.play('locked'), { once: false });
+    }
+  });
+});
+document.querySelectorAll('.game-card[data-game]').forEach(c =>
+  lockObserver.observe(c, { attributes: true, attributeFilter: ['class'] })
+);
+
+// ── Hook: buttons ─────────────────────────────────
+document.querySelectorAll('.btn, .btn-xs, .btn-gold').forEach(btn => {
+  btn.addEventListener('click', () => SFX.play('click'));
+});
+
+// ── Hook: level up ────────────────────────────────
+const _origShowLevelUp = showLevelUp;
+showLevelUp = function(level) {
+  SFX.play('levelUp');
+  _origShowLevelUp(level);
+};
+
+// ── Hook: XP popup ────────────────────────────────
+const _origShowXpPopup = showXpPopup;
+showXpPopup = function(...args) {
+  SFX.play('xpGain');
+  _origShowXpPopup(...args);
+};
+
+// ── Hook: Coin Flip ───────────────────────────────
+const cfBtn = document.getElementById('cfBtn');
+if (cfBtn) cfBtn.addEventListener('click', () => SFX.play('coinFlip'), true);
+
+// Patch coinflip result display
+const _origArchFetch = archFetch;
+// We hook individual result handlers via MutationObserver on result divs
+function observeResult(id, onWin, onLose) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new MutationObserver(() => {
+    if (el.style.display === 'none') return;
+    const txt = el.textContent || '';
+    if (el.classList.contains('hist-win') || txt.includes('+') && !txt.includes('-')) onWin && onWin();
+    else onLose && onLose();
+  }).observe(el, { attributes: true, attributeFilter: ['style'], childList: true });
+}
+
+// Dice sound on button click
+const diceBtn = document.querySelector('#modalDice .btn');
+if (diceBtn) diceBtn.addEventListener('click', () => SFX.play('diceRoll'), true);
+
+// Slots
+const slotsBtn = document.querySelector('#modalSlots .btn');
+if (slotsBtn) slotsBtn.addEventListener('click', () => SFX.play('slotsStart'), true);
+
+// BJ deal
+const bjDealBtn = document.getElementById('bjDealBtn');
+if (bjDealBtn) bjDealBtn.addEventListener('click', () => SFX.play('bjDeal'), true);
+const bjHitBtn = document.getElementById('bjHitBtn');
+if (bjHitBtn) bjHitBtn.addEventListener('click', () => SFX.play('bjHit'), true);
+
+// Mines reveal
+document.querySelectorAll('.mine-cell').forEach(cell => {
+  cell.addEventListener('click', () => SFX.play('minesReveal'));
+});
+
+// Roulette spin
+const roulBtn = document.querySelector('#modalRoulette .btn');
+if (roulBtn) roulBtn.addEventListener('click', () => SFX.play('rouletteStart'), true);
+
+// Keno draw
+const kenoBtn = document.getElementById('kenoPlayBtn');
+if (kenoBtn) kenoBtn.addEventListener('click', () => SFX.play('kenoDraw'), true);
+
+// Poker deal
+const pokerDealBtn = document.getElementById('pokerDealBtn');
+if (pokerDealBtn) pokerDealBtn.addEventListener('click', () => SFX.play('pokerDeal'), true);
+
+// Scratch — hook scratchInit to add sound to cells
+const _origScratchInit = scratchInit;
+scratchInit = function() {
+  _origScratchInit();
+  setTimeout(() => {
+    document.querySelectorAll('.scratch-cell').forEach(cell => {
+      cell.addEventListener('click', () => SFX.play('scratchSound'), { once: true });
+    });
+  }, 100);
+};
+
+// Tower step sound
+const _origTowerStep = towerStep;
+towerStep = async function(lvl, choice) {
+  SFX.play('towerStep');
+  return _origTowerStep(lvl, choice);
+};
+
+// Cashout sounds via result div observation
+// We'll hook the result display to detect win/lose by checking element content
+function hookResultSound(resultId, winSnd, loseSnd) {
+  const el = document.getElementById(resultId);
+  if (!el) return;
+  new MutationObserver(() => {
+    if (el.style.display === 'none' || el.style.display === '') return;
+    const hasWin  = el.querySelector('.result-amount')?.textContent?.startsWith('+')
+                 || el.textContent?.includes('GAGNÉ')
+                 || el.textContent?.includes('WIN')
+                 || el.textContent?.includes('BLACKJACK')
+                 || el.querySelector('.hist-win');
+    const hasLose = el.querySelector('.result-amount')?.textContent?.startsWith('-')
+                 || el.textContent?.includes('PERDU')
+                 || el.textContent?.includes('BUST')
+                 || el.textContent?.includes('💥');
+    if (hasWin)       SFX.play(winSnd);
+    else if (hasLose) SFX.play(loseSnd);
+  }).observe(el, { attributes: true, attributeFilter: ['style'], childList: true, subtree: true });
+}
+
+hookResultSound('cfResult',       'coinWin',      'coinLose');
+hookResultSound('diceResult',     'diceWin',      'diceLose');
+hookResultSound('slotsResult',    'slotsWin',     'slotsLose');
+hookResultSound('bjResult',       'bjWin',        'bjLose');
+hookResultSound('minesResult',    'minesCashout', 'minesBoom');
+hookResultSound('crashResult',    'crashWin',     'crashBoom');
+hookResultSound('rouletteResult', 'rouletteWin',  'rouletteLose');
+hookResultSound('plinkoResult',   'plinkoWin',    'plinkoLose');
+hookResultSound('kenoResult',     'kenoWin',      'kenoLose');
+hookResultSound('pokerResult',    'pokerWin',     'pokerLose');
+hookResultSound('scratchResult',  'scratchWin',   'scratchLose');
+hookResultSound('towerResult',    'towerCashoutSfx', 'towerFall');
+
+// Cashback popup sound
+const _origHandleXpGain = handleXpGain;
+handleXpGain = function(xpGained, cashback) {
+  if (cashback > 0) setTimeout(() => SFX.play('cashback'), 400);
+  _origHandleXpGain(xpGained, cashback);
+};
+
 </script>
+
+<!-- SOUND SETTINGS MODAL -->
+<div class="modal-overlay" id="modalSound">
+  <div class="modal" style="width:min(340px,96vw);">
+    <button class="modal-close" onclick="document.getElementById('modalSound').classList.remove('open');SFX.play('modalClose');">&#10005;</button>
+    <div class="modal-title">&#9836; SOUND SETTINGS</div>
+    <div class="modal-sub">CYBER / LO-FI ENGINE</div>
+    <div style="margin:24px 0 10px;display:flex;flex-direction:column;gap:18px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <span style="font-size:0.6rem;letter-spacing:3px;color:var(--green3);min-width:60px;">VOLUME</span>
+        <input type="range" id="volSlider" min="0" max="100" value="50"
+          style="flex:1;accent-color:var(--green);cursor:pointer;"
+          oninput="SFX.setVolume(this.value/100);document.getElementById('volDisplay').textContent=this.value+'%';">
+        <span id="volDisplay" style="font-size:0.6rem;color:var(--green);min-width:36px;text-align:right;">50%</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <span style="font-size:0.6rem;letter-spacing:3px;color:var(--green3);min-width:60px;">MUTE</span>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="muteCheck" style="accent-color:var(--green);"
+            onchange="SFX.setMuted(this.checked);">
+          <span style="font-size:0.58rem;color:var(--green3);">COUPER LE SON</span>
+        </label>
+      </div>
+      <div style="text-align:center;margin-top:8px;">
+        <button class="btn" onclick="SFX.play('levelUp');" style="font-size:0.55rem;">&#9654; TEST SON</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
