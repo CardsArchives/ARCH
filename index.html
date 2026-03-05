@@ -442,11 +442,7 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
           <div class="prog-bar" id="progBar"></div>
         </div>
 
-        <div class="claim-btn-wrap" id="claimBtnWrap" style="display:flex">
-          <button class="btn btn-claim" id="claimBtn" onclick="doClaim()">
-            ▶ CLAIM +<span id="claimAmount">0.000000</span> ARCH
-          </button>
-        </div>
+
       </div>
 
       <!-- Stats -->
@@ -741,71 +737,36 @@ function startSlotAnimation(reward, scanDuration, claimWindow) {
 function showClaimWindow(reward, windowSec) {
   claimActive = true;
   const progBar = document.getElementById('progBar');
-  const wrap    = document.getElementById('claimBtnWrap');
-  const btn     = document.getElementById('claimBtn');
-  const amount  = document.getElementById('claimAmount');
   const status  = document.getElementById('scanStatus');
 
-  amount.textContent = reward.toFixed(6);
-  wrap.style.display = 'flex';
-  btn.disabled       = false;
   progBar.className  = 'prog-bar claim-mode';
-  claimEnd = Date.now() + windowSec * 1000;
+  status.textContent = 'CLAIM AUTOMATIQUE... +' + reward.toFixed(6) + ' ARCH';
 
-  // Countdown on button
-  clearInterval(claimTimer);
-  claimTimer = setInterval(() => {
-    const left = Math.ceil((claimEnd - Date.now()) / 1000);
-    if (left <= 0) {
-      clearInterval(claimTimer);
-      cancelClaim();
-    } else {
-      btn.textContent = '';
-      btn.textContent = `▶ CLAIM +${reward.toFixed(6)} ARCH [${left}s]`;
-      progBar.style.width = (left / windowSec * 100) + '%';
+  // Auto-claim immédiatement
+  setTimeout(() => {
+    if (claimActive) {
+      doClaim();
     }
-  }, 250);
+  }, 500);
 }
 
 function cancelClaim() {
-  claimActive = false;
-  document.getElementById('claimBtnWrap').style.display = 'none';
-  document.getElementById('progBar').className  = 'prog-bar';
-  document.getElementById('progBar').style.width = '0%';
-  document.getElementById('scanStatus').textContent = 'EN ATTENTE DU PROCHAIN CYCLE...';
-  document.getElementById('slotWrap').classList.remove('jackpot');
-  // Appelle expire pour récupérer 50%
-  fetch(SERVER + '/api/expire', { method: 'POST', headers: { Authorization: 'Bearer ' + token } })
-    .then(r => r.json()).then(d => {
-      if (d.reward) {
-        log('> CLAIM EXPIRÉ — 50% crédité : +' + d.reward.toFixed(6) + ' ARCH', 'miss');
-        spawnBurst('+' + d.reward.toFixed(6) + ' ARCH', false);
-        refreshMe();
-      } else {
-        log('> CLAIM EXPIRÉ.', 'miss');
-      }
-    }).catch(() => {});
-  scanTimer = 0;
+  // Auto-claim, pas besoin de cancel
 }
 
 async function doClaim() {
-  clearInterval(claimTimer);
-  document.getElementById('claimBtn').disabled = true;
   try {
     const r = await fetch(SERVER + '/api/claim', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
     const d = await r.json();
-    if (!r.ok) { log('> ' + (d.error||'Erreur claim'), 'miss'); cancelClaim(); return; }
+    if (!r.ok) { log('> ' + (d.error||'Erreur claim'), 'miss'); return; }
 
     // Success
     claimActive = false;
     slotActive = false;
-    document.getElementById('claimBtnWrap').style.display = 'none';
     document.getElementById('progBar').className  = 'prog-bar';
     document.getElementById('progBar').style.width = '0%';
     document.getElementById('scanStatus').textContent = 'EN ATTENTE DU PROCHAIN CYCLE...';
     document.getElementById('slotWrap').classList.remove('jackpot');
-
-    setBalance(d.balance, d.balance);
 
     const isBig = d.reward >= 0.1;
     spawnBurst('+' + d.reward.toFixed(6) + ' ARCH', isBig);
@@ -814,7 +775,7 @@ async function doClaim() {
     await refreshMe();
     await refreshLB();
     scanTimer = 0;
-  } catch(e) { log('> ERREUR RÉSEAU', 'miss'); cancelClaim(); }
+  } catch(e) { log('> ERREUR RÉSEAU', 'miss'); }
 }
 
 // ── LEADERBOARD ───────────────────────────
