@@ -1033,12 +1033,6 @@ async function showHub(){
   await refreshBalance();
 }
 
-async function refreshBalance(){
-  const d=await archFetch('/api/me');
-  if(!d.username){doLogout();return;}
-  balance=d.balance;document.getElementById('walletBalance').textContent=balance.toFixed(6);
-}
-
 if(token){archFetch('/api/me').then(d=>{if(d.username){username=d.username;showHub();}else doLogout();});}
 
 function setMax(id){if(balance>0)document.getElementById(id).value=balance.toFixed(6);}
