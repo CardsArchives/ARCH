@@ -8,7 +8,6 @@
 :root {
   --green: #00ff41;
   --green3: #008f11;
-  --green4: #003b00;
   --red: #ff003c;
   --gold: #ffe066;
   --font: 'Courier New', Courier, monospace;
@@ -26,11 +25,19 @@ html, body {
 
 body {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 20px;
   padding: 20px;
+  min-height: 100vh;
+}
+
+#app {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
 }
 
 h1 {
@@ -42,14 +49,12 @@ h1 {
 .box {
   border: 1px solid var(--green3);
   padding: 15px 30px;
-  text-align: center;
   min-width: 300px;
 }
 
 .status {
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: var(--green);
-  font-weight: bold;
 }
 
 .balance {
@@ -76,11 +81,10 @@ h1 {
 
 .button:disabled {
   opacity: 0.3;
-  cursor: default;
 }
 
 .info {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: var(--green3);
   max-width: 400px;
 }
@@ -88,24 +92,23 @@ h1 {
 </head>
 <body>
 
-<h1>ARCH</h1>
-
-<div class="box">
-  <div class="status" id="status">⏳ Chargement...</div>
+<div id="app">
+  <h1>ARCH</h1>
+  
+  <div class="box">
+    <div class="status" id="status">⏳ Chargement...</div>
+  </div>
+  
+  <div class="box">
+    <div class="balance" id="balance">◈ 0.000000 ARCH</div>
+  </div>
+  
+  <button class="button" id="testBtn" disabled>Test</button>
+  
+  <div class="info" id="info"></div>
 </div>
-
-<div class="box">
-  <div class="balance" id="balance">◈ 0.000000 ARCH</div>
-</div>
-
-<button class="button" id="testBtn" disabled>Test WebSocket</button>
-
-<div class="info" id="info"></div>
 
 <script>
-// ============================================================
-//  CONFIG & UTILS
-// ============================================================
 const CLIENT_ID = '__DISCORD_CLIENT_ID__';
 const SERVER_URL = '__SERVER_URL__';
 
@@ -115,8 +118,6 @@ console.log('🔍 SERVER_URL:', SERVER_URL);
 let serverUrl = SERVER_URL;
 if (!serverUrl || serverUrl === '__SERVER_URL__') {
   serverUrl = location.origin;
-} else {
-  console.log('✅ SERVER_URL injecté:', serverUrl);
 }
 
 let token = null;
@@ -136,172 +137,77 @@ function setInfo(msg) {
   document.getElementById('info').textContent = msg;
 }
 
-// ============================================================
-//  DISCORD SDK VIA IIFE (Immediately Invoked Function Expression)
-// ============================================================
-const initDiscordSDK = () => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      // Charger le SDK dynamiquement
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0';
-      
-      script.onload = async () => {
-        try {
-          // Le SDK est maintenant disponible globalement
-          if (!window.DiscordSDK) {
-            throw new Error('DiscordSDK not available on window');
-          }
-          
-          console.log('✅ Discord SDK chargé');
-          
-          const discordSdk = new window.DiscordSDK(CLIENT_ID);
-          console.log('✅ DiscordSDK instancié');
-          
-          // Ready
-          await discordSdk.ready();
-          console.log('✅ Discord SDK prêt');
-          
-          // Authorize
-          const { code } = await discordSdk.commands.authorize({
-            client_id: CLIENT_ID,
-            response_type: 'code',
-            state: '',
-            prompt: 'none',
-            scope: ['identify'],
-          });
-          console.log('✅ Code reçu');
-          
-          // Token exchange
-          const tr = await fetch(serverUrl + '/api/discord/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code }),
-          });
-          const { access_token } = await tr.json();
-          console.log('✅ Access token reçu');
-          
-          // Authenticate
-          const auth = await discordSdk.commands.authenticate({ access_token });
-          console.log('✅ Authentifié:', auth.user.username);
-          
-          // Créer compte ARCH
-          const ar = await fetch(serverUrl + '/api/discord/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              discord_id: auth.user.id,
-              username: auth.user.username,
-              avatar: auth.user.avatar
-            }),
-          });
-          
-          const ad = await ar.json();
-          if (!ad.token) throw new Error('Pas de token ARCH');
-          
-          token = ad.token;
-          balance = ad.balance || 0;
-          console.log('✅ Compte ARCH créé');
-          
-          resolve(true);
-        } catch(e) {
-          console.error('❌ Erreur SDK:', e);
-          reject(e);
-        }
-      };
-      
-      script.onerror = () => {
-        reject(new Error('Erreur chargement SDK'));
-      };
-      
-      document.head.appendChild(script);
-      
-    } catch(e) {
-      reject(e);
-    }
-  });
-};
-
-// ============================================================
-//  WEBSOCKET
-// ============================================================
-async function connectWS() {
-  return new Promise((resolve) => {
-    try {
-      let wsUrl = serverUrl;
-      if (!wsUrl.startsWith('http')) {
-        wsUrl = location.protocol + '//' + wsUrl;
-      }
-      wsUrl = wsUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
-      wsUrl = wsUrl + '/ws?token=' + token;
-      
-      console.log('🔌 WebSocket:', wsUrl);
-      
-      ws = new WebSocket(wsUrl);
-      
-      ws.onopen = () => {
-        console.log('✅ WebSocket connecté');
-        resolve();
-      };
-      
-      ws.onerror = (err) => {
-        console.error('❌ WebSocket erreur:', err);
-        resolve();
-      };
-      
-      ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'balance_sync') {
-          setBalance(msg.balance);
-        }
-      };
-      
-      ws.onclose = () => {
-        console.log('⚠️ WebSocket fermé');
-        setTimeout(connectWS, 3000);
-      };
-      
-      setTimeout(resolve, 2000);
-    } catch(e) {
-      console.error('Erreur WS:', e);
-      resolve();
-    }
-  });
-}
-
-// ============================================================
-//  MAIN
-// ============================================================
+// Create anonymous account
 async function init() {
   try {
-    setStatus('🔐 Discord SDK...');
-    await initDiscordSDK();
+    setStatus('📝 Création compte...');
     
-    setStatus('🔌 WebSocket...');
-    await connectWS();
+    const userId = 'activity_' + Math.random().toString(36).substring(7);
+    const userName = 'Player' + Math.floor(Math.random() * 10000);
     
-    setStatus('✅ Connecté!');
-    setBalance(balance);
-    setInfo('Discord Activity avec SDK fonctionne!');
-    document.getElementById('testBtn').disabled = false;
+    const res = await fetch(serverUrl + '/api/discord/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        discord_id: userId,
+        username: userName,
+        avatar: null
+      }),
+    });
+    
+    const data = await res.json();
+    if (!data.token) throw new Error('Pas de token');
+    
+    token = data.token;
+    balance = data.balance || 0;
+    console.log('✅ Compte créé:', userName);
+    
+    // Connect WebSocket
+    setStatus('🔌 Connexion...');
+    
+    let wsUrl = serverUrl;
+    if (!wsUrl.startsWith('http')) wsUrl = location.protocol + '//' + wsUrl;
+    wsUrl = wsUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+    wsUrl = wsUrl + '/ws?token=' + token;
+    
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+      console.log('✅ WebSocket connecté');
+      setStatus('✅ Connecté!');
+      setBalance(balance);
+      setInfo('Discord Activity fonctionne!');
+      document.getElementById('testBtn').disabled = false;
+    };
+    
+    ws.onerror = () => {
+      setStatus('⚠️ Pas de WebSocket');
+      setBalance(balance);
+      setInfo('Mode lecture seule');
+    };
+    
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'balance_sync') setBalance(msg.balance);
+    };
+    
+    ws.onclose = () => {
+      setTimeout(init, 3000);
+    };
     
   } catch(e) {
     console.error('❌ Erreur:', e);
-    setStatus('❌ ' + e.message);
-    setInfo('Vérifies la console pour plus de détails');
+    setStatus('❌ Erreur');
+    setInfo(e.message);
   }
 }
 
-// Démarrer
-window.addEventListener('load', init);
+init();
 
-// Test button
 document.getElementById('testBtn').addEventListener('click', () => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'status', status: 'playing' }));
     setInfo('✅ Message envoyé');
-  } else {
-    setInfo('❌ WebSocket pas connecté');
   }
 });
 </script>
