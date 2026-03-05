@@ -400,13 +400,6 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
         <div class="game-desc">3 rouleaux. Aligne 3 symboles identiques jusqu'a x50.</div>
         <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
       </div>
-      <div class="game-card" onclick="openBonusWheelBuyIn()" style="border-color:var(--gold);">
-        <span class="game-badge" style="border-color:var(--gold);color:var(--gold);">BUY-IN</span>
-        <div class="game-icon" style="font-size:2rem;">&#9670;</div>
-        <div class="game-name" style="color:var(--gold);">ARCH BONUS WHEEL</div>
-        <div class="game-desc">La roue du destin. Jusqu'au jackpot absolu. Buy-in direct sans conditions.</div>
-        <div class="game-stake" style="color:var(--gold);">BUY-IN : 1000 ARCH</div>
-      </div>
       <div class="game-card" id="card-blackjack" data-game="blackjack">
         <span class="game-badge">LIVE</span>
         <div class="game-icon" style="font-size:1.8rem;font-weight:900;">&#9824;</div>
@@ -596,6 +589,7 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
         <button class="btn" style="padding:4px 10px;font-size:0.55rem;margin-top:0;flex:none;width:auto" onclick="slotStopAuto()">STOP</button>
       </div>
     </div>
+    <button class="btn btn-gold" onclick="slotBuyInWheel()" style="margin-top:8px;font-size:0.62rem;letter-spacing:3px;">&#9670; BONUS WHEEL &mdash; 1000 ARCH</button>
     <div class="slot-auto-row" id="slotAutoRow" style="display:none">
       <span class="slot-ctrl-label">TOURS AUTO :</span>
       <select class="mines-select" id="slotAutoSelect"><option>10</option><option>25</option><option>50</option><option>100</option></select>
@@ -611,15 +605,11 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 <div class="modal-overlay" id="modalBonusWheel" style="z-index:200">
   <div class="modal" style="width:min(420px,96vw);text-align:center">
     <div class="modal-title" style="font-size:1.1rem;letter-spacing:8px;text-align:center">&#9670; ARCH BONUS &#9670;</div>
-    <div class="modal-sub" id="bonusWheelSub" style="text-align:center">LA ROUE DU DESTIN</div>
+    <div class="modal-sub" style="text-align:center">LA ROUE DU DESTIN</div>
     <hr class="modal-hr">
     <canvas id="bonusWheelCanvas" width="340" height="340" style="display:block;margin:0 auto;max-width:100%"></canvas>
     <div class="crash-mult" id="bonusWheelResult" style="display:none;padding:10px 0"></div>
-    <!-- Free spin (slots triggered) -->
     <button class="btn btn-gold" id="bonusSpinBtn" onclick="spinBonusWheel()" style="margin-top:12px">[ FAIRE TOURNER ]</button>
-    <!-- Paid spin (buy-in) -->
-    <button class="btn btn-gold" id="bonusBuyBtn" onclick="buyBonusWheel()" style="margin-top:12px;display:none">[ SPIN &mdash; 1000 ARCH ]</button>
-    <div class="err-msg" id="bonusErr"></div>
     <button class="btn" id="bonusCloseBtn" onclick="closeBonusWheel()" style="display:none;margin-top:8px">[ CONTINUER ]</button>
   </div>
 </div>
@@ -1420,50 +1410,37 @@ function slotStopAuto() {
 }
 
 // ════ BONUS WHEEL ════
-let bonusWheelMode = 'free'; // 'free' (slots triggered) | 'paid' (buy-in)
+async function slotBuyInWheel() {
+  const errEl = document.getElementById('slotsErr');
+  errEl.textContent = '';
+  if (balance < 1000) { errEl.textContent = 'Solde insuffisant. Coût : 1000 ARCH.'; return; }
+  const data = await archFetch('/api/game/bonus-wheel', { method: 'POST', body: JSON.stringify({}) });
+  if (!data.ok) { errEl.textContent = data.error || 'Erreur.'; return; }
+  balance = data.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+  slotBonusReward = data.reward;
+  openBonusWheel(data.reward);
+}
 
 function openBonusWheel(reward) {
-  // Called after slots bonus trigger — free spin, reward already computed server-side
-  bonusWheelMode = 'free';
-  slotBonusReward = reward;
-  document.getElementById('bonusWheelSub').textContent = 'BONUS SLOTS — SPIN GRATUIT';
+  document.getElementById('modalBonusWheel').classList.add('open');
   document.getElementById('bonusWheelResult').style.display = 'none';
   document.getElementById('bonusSpinBtn').style.display = '';
-  document.getElementById('bonusSpinBtn').disabled = false;
-  document.getElementById('bonusBuyBtn').style.display = 'none';
   document.getElementById('bonusCloseBtn').style.display = 'none';
-  document.getElementById('bonusErr').textContent = '';
-  document.getElementById('modalBonusWheel').classList.add('open');
+  slotBonusReward = reward;
   drawBonusWheel(0);
 }
-
-function openBonusWheelBuyIn() {
-  // Called from game card — paid mode
-  bonusWheelMode = 'paid';
-  document.getElementById('bonusWheelSub').textContent = 'BUY-IN 1000 ARCH — JACKPOT POSSIBLE';
-  document.getElementById('bonusWheelResult').style.display = 'none';
-  document.getElementById('bonusSpinBtn').style.display = 'none';
-  document.getElementById('bonusBuyBtn').style.display = '';
-  document.getElementById('bonusBuyBtn').disabled = false;
-  document.getElementById('bonusCloseBtn').style.display = 'none';
-  document.getElementById('bonusErr').textContent = '';
-  document.getElementById('modalBonusWheel').classList.add('open');
-  drawBonusWheel(0);
-}
-
 function closeBonusWheel() {
   document.getElementById('modalBonusWheel').classList.remove('open');
-  if (bonusWheelMode === 'free') {
-    const gain = slotBonusReward;
-    totalWins += gain;
-    document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
-    const resEl = document.getElementById('slotsResult');
-    resEl.className = 'result-box result-win';
-    resEl.innerHTML = `&#9670; BONUS ARCH !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
-    resEl.style.display = 'block';
-    addHist(`SLOTS BONUS \u2014 +${gain.toFixed(6)} ARCH`, 'hist-big');
-    burst('\u2605 +' + gain.toFixed(6) + ' ARCH !', window.innerWidth/2, 300, 'big');
-  }
+  const gain = slotBonusReward;
+  totalWins += gain;
+  document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
+  const resEl = document.getElementById('slotsResult');
+  resEl.className = 'result-box result-win';
+  resEl.innerHTML = `&#9670; BONUS ARCH !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
+  resEl.style.display = 'block';
+  addHist(`SLOTS BONUS \u2014 +${gain.toFixed(6)} ARCH`, 'hist-big');
+  burst('\u2605 +' + gain.toFixed(6) + ' ARCH !', window.innerWidth/2, 300, 'big');
 }
 
 function drawBonusWheel(angle) {
@@ -1474,20 +1451,24 @@ function drawBonusWheel(angle) {
   const segments = 12;
   const step = (Math.PI*2) / segments;
   ctx.clearRect(0,0,W,H);
+  // Fond
   ctx.beginPath(); ctx.arc(cx,cy,r+2,0,Math.PI*2);
   ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 2; ctx.stroke();
-  const labels = bonusWheelMode === 'paid'
-    ? ['JACKPOT','100-500','500-1k','100-500','1k-5k','100-500','5k-20k','100-500','500-1k','100-500','JACKPOT','100-500']
-    : ['MAX','1-5','5-15','1-5','15-100','1-5','100-1k','1-5','5-15','1-5','MAX','1-5'];
   for (let i = 0; i < segments; i++) {
     const start = angle + i * step, end = angle + (i+1) * step;
     const isGold = i % 4 === 0;
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,start,end); ctx.closePath();
-    ctx.fillStyle = isGold ? '#1a1200' : (i%2===0 ? '#000800' : '#001200'); ctx.fill();
-    ctx.strokeStyle = isGold ? '#ffe066' : '#00ff4155'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,start,end);
+    ctx.closePath();
+    ctx.fillStyle = isGold ? '#1a1200' : (i%2===0 ? '#000800' : '#001200');
+    ctx.fill();
+    ctx.strokeStyle = isGold ? '#ffe066' : '#00ff4155';
+    ctx.lineWidth = 1; ctx.stroke();
+    // Label
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle + (i+0.5)*step);
-    ctx.textAlign = 'right'; ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'right'; ctx.font = 'bold 9px monospace';
     ctx.fillStyle = isGold ? '#ffe066' : '#00ff41';
+    // Les labels sont symboliques, la vraie valeur vient du serveur
+    const labels = ['MAX','1-5','5-15','1-5','15-100','1-5','100-1k','1-5','5-15','1-5','MAX','1-5'];
     ctx.fillText(labels[i], r-6, 3);
     ctx.restore();
   }
@@ -1496,31 +1477,32 @@ function drawBonusWheel(angle) {
   ctx.lineTo(cx-6, cy-r+18); ctx.lineTo(cx+6, cy-r+18); ctx.closePath();
   ctx.fillStyle = '#ff003c'; ctx.fill();
   // Centre
-  ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.fillStyle = '#00ff41'; ctx.fill();
-  ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2); ctx.fillStyle = '#000'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2);
+  ctx.fillStyle = '#00ff41'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2);
+  ctx.fillStyle = '#000'; ctx.fill();
 }
 
-async function runWheelAnimation() {
-  const totalRotation = Math.PI*2 * (5 + Math.random()*5);
+async function spinBonusWheel() {
+  document.getElementById('bonusSpinBtn').disabled = true;
+  const canvas = document.getElementById('bonusWheelCanvas');
+  const totalRotation = Math.PI*2 * (5 + Math.random()*5); // 5-10 tours
   const duration = 4000;
   const start = performance.now();
   await new Promise(resolve => {
     function frame(now) {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
       const ease = 1 - Math.pow(1 - progress, 3);
-      drawBonusWheel(ease * totalRotation);
+      const angle = ease * totalRotation;
+      drawBonusWheel(angle);
       if (progress < 1) requestAnimationFrame(frame);
       else resolve();
     }
     requestAnimationFrame(frame);
   });
-}
-
-async function spinBonusWheel() {
-  // Free spin — reward already known
-  document.getElementById('bonusSpinBtn').disabled = true;
-  await runWheelAnimation();
+  // Afficher le résultat
   const resEl = document.getElementById('bonusWheelResult');
   resEl.textContent = '+' + slotBonusReward.toFixed(6) + ' ARCH';
   resEl.style.display = 'block';
@@ -1528,59 +1510,6 @@ async function spinBonusWheel() {
   document.getElementById('bonusSpinBtn').style.display = 'none';
   document.getElementById('bonusCloseBtn').style.display = '';
   burst('\u2605 +' + slotBonusReward.toFixed(6) + ' !', window.innerWidth/2, 200, 'big');
-}
-
-async function buyBonusWheel() {
-  // Paid spin — call server, then animate
-  const errEl = document.getElementById('bonusErr');
-  const buyBtn = document.getElementById('bonusBuyBtn');
-  errEl.textContent = '';
-  buyBtn.disabled = true;
-  buyBtn.textContent = '[ SPIN EN COURS... ]';
-
-  const data = await archFetch('/api/game/bonus-wheel', { method: 'POST', body: JSON.stringify({}) });
-  if (!data.ok) {
-    errEl.textContent = data.error || 'Erreur.';
-    buyBtn.disabled = false;
-    buyBtn.textContent = '[ SPIN — 1000 ARCH ]';
-    return;
-  }
-
-  // Update balance immediately
-  balance = data.balance;
-  document.getElementById('walletBalance').textContent = balance.toFixed(6);
-
-  // Animate wheel then reveal
-  await runWheelAnimation();
-
-  const reward = data.reward;
-  const resEl = document.getElementById('bonusWheelResult');
-  const net = parseFloat((reward - 1000).toFixed(6));
-  resEl.style.display = 'block';
-  resEl.className = 'crash-mult winning';
-
-  if (reward >= 20000) {
-    // JACKPOT
-    resEl.innerHTML = `&#9670; JACKPOT &#9670;<div style="font-size:1.4rem;color:var(--gold)">+${reward.toFixed(6)} ARCH</div>`;
-    burst('\uD83D\uDC8E JACKPOT ! +' + reward.toFixed(6), window.innerWidth/2, 200, 'big');
-  } else {
-    resEl.textContent = '+' + reward.toFixed(6) + ' ARCH';
-    if (net > 0) burst('\u2605 +' + reward.toFixed(6) + ' !', window.innerWidth/2, 200, 'big');
-  }
-
-  // Update wins/losses
-  if (net > 0) {
-    totalWins += reward;
-    document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
-    addHist(`BONUS WHEEL \u2014 +${reward.toFixed(6)} ARCH (net: +${net.toFixed(6)})`, 'hist-big');
-  } else {
-    totalLosses += Math.abs(net);
-    document.getElementById('walletLosses').textContent = '-' + totalLosses.toFixed(6) + ' ARCH';
-    addHist(`BONUS WHEEL \u2014 +${reward.toFixed(6)} ARCH (net: ${net.toFixed(6)})`, 'hist-lose');
-  }
-
-  buyBtn.style.display = 'none';
-  document.getElementById('bonusCloseBtn').style.display = '';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
