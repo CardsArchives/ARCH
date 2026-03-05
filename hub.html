@@ -1567,11 +1567,18 @@ async function bjFinish(d){
   burst(amtTxt,window.innerWidth/2,300,bCls);
   document.getElementById('bjNewGame').style.display='';bjState=null;
 }
+
 function bjNewGame(){
-  document.getElementById('bjTable').style.display='none';document.getElementById('bjDealForm').style.display='';
-  document.getElementById('bjResult').style.display='none';document.getElementById('bjNewGame').style.display='none';
-  document.getElementById('bjActions').style.display='';document.getElementById('bjErr').textContent='';
-  document.getElementById('bjDealBtn').disabled=false;refreshBalance();
+  bjState=null;
+  document.getElementById("bjTable").style.display="none";
+  document.getElementById("bjDealForm").style.display="";
+  document.getElementById("bjResult").style.display="none";
+  document.getElementById("bjNewGame").style.display="none";
+  document.getElementById("bjActions").style.display="";
+  document.getElementById("bjErr").textContent="";
+  document.getElementById("bjDealBtn").disabled=false;
+  ["bjHit","bjStand","bjDouble"].forEach(function(id){var el=document.getElementById(id);if(el){el.disabled=false;el.style.display="";} });
+  refreshBalance();
 }
 
 // ════ MINES ════
@@ -2475,7 +2482,7 @@ const SFX = (() => {
   let ctx = null;
   let masterGain = null;
   let muted = false;
-  let volume = parseFloat(localStorage.getItem('arch_vol') ?? '0.5');
+  let volume = parseFloat(localStorage.getItem('arch_vol') ?? '0.3');
 
   function init() {
     if (ctx) return;
@@ -2542,34 +2549,37 @@ const SFX = (() => {
     // UI
     click() {
       init(); resume(); const t = ctx.currentTime;
-      tone(880, 'square', t, 0.06, 0.12, { filter: { type: 'highpass', freq: 600 } });
-      tone(440, 'square', t + 0.03, 0.05, 0.06);
+      // Bref clic électronique discret
+      tone(320, 'sine', t, 0.05, 0.06);
+      noise(t, 0.03, 0.03, 1800);
     },
     hover() {
       init(); resume(); const t = ctx.currentTime;
-      tone(1200, 'sine', t, 0.04, 0.04);
+      // Quasi inaudible — juste un tick
+      tone(900, 'sine', t, 0.025, 0.018);
     },
     locked() {
       init(); resume(); const t = ctx.currentTime;
-      tone(180, 'sawtooth', t, 0.12, 0.15, { freqEnd: 120 });
-      noise(t, 0.08, 0.05, 200);
+      // Buzz court grave
+      tone(130, 'sawtooth', t, 0.09, 0.07, { freqEnd: 100 });
+      noise(t, 0.06, 0.03, 250);
     },
     modalOpen() {
       init(); resume(); const t = ctx.currentTime;
-      tone(440, 'sine', t,       0.08, 0.12);
-      tone(660, 'sine', t + 0.07, 0.08, 0.10);
-      tone(880, 'sine', t + 0.13, 0.10, 0.08);
+      // Swoosh électronique montant très court
+      tone(200, 'sine', t, 0.12, 0.06, { freqEnd: 480 });
+      noise(t + 0.06, 0.05, 0.025, 1200);
     },
     modalClose() {
       init(); resume(); const t = ctx.currentTime;
-      tone(880, 'sine', t,       0.07, 0.08);
-      tone(440, 'sine', t + 0.06, 0.09, 0.07);
+      // Swoosh descendant court
+      tone(380, 'sine', t, 0.10, 0.05, { freqEnd: 180 });
     },
 
     // XP / Level
     xpGain() {
       init(); resume(); const t = ctx.currentTime;
-      tone(1320, 'sine', t, 0.10, 0.08, { freqEnd: 1760 });
+      tone(660, 'sine', t, 0.07, 0.05, { freqEnd: 880 });
     },
     levelUp() {
       init(); resume(); const t = ctx.currentTime;
@@ -2591,14 +2601,14 @@ const SFX = (() => {
     },
     coinWin() {
       init(); resume(); const t = ctx.currentTime;
-      tone(523, 'sine', t,       0.12, 0.15);
-      tone(659, 'sine', t + 0.1, 0.12, 0.13);
-      tone(784, 'sine', t + 0.2, 0.18, 0.12, { freqEnd: 1046 });
+      tone(523, 'sine', t,       0.10, 0.07);
+      tone(659, 'sine', t + 0.09, 0.10, 0.06);
+      tone(784, 'sine', t + 0.17, 0.13, 0.06, { freqEnd: 1046 });
     },
     coinLose() {
       init(); resume(); const t = ctx.currentTime;
-      tone(300, 'sawtooth', t, 0.20, 0.14, { freqEnd: 150 });
-      noise(t + 0.05, 0.15, 0.06, 300);
+      tone(220, 'sawtooth', t, 0.14, 0.07, { freqEnd: 130 });
+      noise(t + 0.04, 0.10, 0.03, 300);
     },
 
     // Dice
