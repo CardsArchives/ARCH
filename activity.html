@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ARCH Casino</title>
+<style>
+  :root {
+    --green:  #00ff41;
+    --green3: #00aa2a;
+    --green4: #004410;
+    --gold:   #ffe066;
+    --red:    #ff3333;
+    --bg:     #000800;
+    --font:   'Courier New', monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--green); font-family:var(--font); min-height:100vh; overflow-x:hidden; user-select:none; }
+
+  #matrixCanvas { position:fixed; top:0; left:0; z-index:0; opacity:0.15; pointer-events:none; }
+
+  /* ── Loading ── */
+  #loadScreen { position:fixed; inset:0; background:var(--bg); z-index:999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; }
+  #loadScreen h1 { font-size:2.8rem; letter-spacing:14px; text-shadow:0 0 28px var(--green); animation:glitch 2.5s infinite; }
+  @keyframes glitch { 0%,100%{text-shadow:0 0 28px var(--green)} 93%{text-shadow:-2px 0 var(--red),2px 0 #00f} 95%{text-shadow:2px 0 var(--red),-2px 0 #00f} 97%{text-shadow:0 0 28px var(--green)} }
+  .load-bar { width:180px; height:2px; background:var(--green4); }
+  .load-fill { height:100%; background:var(--green); width:0%; transition:width 0.3s; box-shadow:0 0 6px var(--green); }
+  .load-txt { font-size:0.52rem; letter-spacing:4px; color:var(--green3); }
+
+  /* ── App layout ── */
+  #app { position:relative; z-index:1; display:none; flex-direction:column; height:100vh; }
+
+  /* ── Header ── */
+  #header { display:flex; align-items:center; justify-content:space-between; padding:6px 14px; border-bottom:1px solid var(--green4); background:rgba(0,8,0,0.96); flex-shrink:0; }
+  #header h1 { font-size:1.1rem; letter-spacing:7px; text-shadow:0 0 10px var(--green); }
+  .bal-chip { display:flex; align-items:center; gap:5px; border:1px solid var(--green3); padding:3px 9px; font-size:0.55rem; letter-spacing:1px; }
+  .bal-val { color:var(--gold); font-size:0.7rem; font-weight:bold; }
+  .av-row { display:flex; }
+  .av { width:26px; height:26px; border-radius:50%; border:2px solid var(--green3); margin-left:-5px; background:var(--green4); display:flex; align-items:center; justify-content:center; font-size:0.5rem; overflow:hidden; }
+  .av img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+
+  /* ── Ticker ── */
+  #ticker { background:rgba(0,18,0,0.8); border-bottom:1px solid var(--green4); padding:3px 14px; font-size:0.48rem; letter-spacing:2px; color:var(--green3); overflow:hidden; white-space:nowrap; flex-shrink:0; }
+  #tickerInner { display:inline-block; animation:scroll 28s linear infinite; }
+  @keyframes scroll { from{transform:translateX(100vw)} to{transform:translateX(-100%)} }
+
+  /* ── Body ── */
+  #body { flex:1; display:flex; overflow:hidden; }
+
+  /* ── Sidebar ── */
+  #sidebar { width:165px; min-width:165px; border-right:1px solid var(--green4); padding:10px 7px; background:rgba(0,5,0,0.7); overflow-y:auto; display:flex; flex-direction:column; gap:7px; }
+  .sb-title { font-size:0.44rem; letter-spacing:3px; color:var(--green3); }
+  .pcard { border:1px solid var(--green4); padding:7px 9px; font-size:0.5rem; display:flex; flex-direction:column; gap:2px; }
+  .pcard.me { border-color:var(--gold); }
+  .pcard.playing { border-color:var(--green3); background:rgba(0,30,0,0.4); }
+  .pname { font-size:0.56rem; color:var(--green); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pbal { color:var(--gold); font-size:0.54rem; }
+  .pstatus { font-size:0.42rem; letter-spacing:2px; color:var(--green3); }
+  .pstatus.live { color:var(--green); animation:blink 1s step-end infinite; }
+  @keyframes blink { 50%{opacity:0} }
+  .plast { font-size:0.44rem; margin-top:1px; }
+  .plast.w { color:var(--green); }
+  .plast.l { color:var(--red); }
+
+  /* ── Games grid ── */
+  #gamesArea { flex:1; padding:14px; overflow-y:auto; }
+  .sec { font-size:0.48rem; letter-spacing:4px; color:var(--green3); margin-bottom:10px; }
+  .ggrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; }
+  .gcard { border:1px solid var(--green4); background:rgba(0,7,0,0.9); padding:12px 10px; cursor:pointer; transition:all 0.2s; position:relative; display:flex; flex-direction:column; gap:3px; }
+  .gcard:hover:not(.locked) { border-color:var(--green); box-shadow:0 0 14px #00ff4115; transform:translateY(-2px); }
+  .gcard.locked { opacity:0.32; cursor:default; }
+  .gicon { font-size:1.3rem; }
+  .gname { font-size:0.54rem; letter-spacing:2px; }
+  .gdesc { font-size:0.43rem; color:var(--green3); line-height:1.4; }
+  .gbadge { position:absolute; top:5px; right:5px; font-size:0.38rem; letter-spacing:2px; border:1px solid var(--green3); padding:1px 3px; color:var(--green3); }
+  .lockbadge { position:absolute; top:5px; right:5px; font-size:0.46rem; color:var(--gold); }
+  .locklvl { font-size:0.38rem; color:var(--gold); letter-spacing:1px; }
+
+  /* ── Game panel ── */
+  #gamePanel { display:none; flex:1; flex-direction:column; padding:14px; overflow-y:auto; gap:10px; }
+  #gamePanel.open { display:flex; }
+  #gamesArea.hidden { display:none; }
+  .ph { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .btn-back { background:transparent; border:1px solid var(--green3); color:var(--green3); font-family:var(--font); font-size:0.52rem; letter-spacing:3px; padding:4px 9px; cursor:pointer; }
+  .btn-back:hover { border-color:var(--green); color:var(--green); }
+  .ptitle { font-size:0.85rem; letter-spacing:5px; }
+
+  /* ── Generic game UI ── */
+  .gui { display:flex; flex-direction:column; gap:9px; max-width:460px; }
+  .grow { display:flex; gap:7px; align-items:center; }
+  .glabel { font-size:0.5rem; letter-spacing:2px; color:var(--green3); min-width:75px; }
+  .ginput { background:transparent; border:1px solid var(--green3); color:var(--green); font-family:var(--font); font-size:0.62rem; padding:5px 9px; width:125px; }
+  .ginput:focus { outline:none; border-color:var(--green); }
+  .btn { background:transparent; border:1px solid var(--green); color:var(--green); font-family:var(--font); font-size:0.55rem; letter-spacing:3px; padding:7px 16px; cursor:pointer; transition:all 0.2s; }
+  .btn:hover:not(:disabled) { background:rgba(0,255,65,0.07); box-shadow:0 0 10px #00ff4125; }
+  .btn:disabled { opacity:0.35; cursor:default; }
+  .btn-gold { border-color:var(--gold); color:var(--gold); }
+  .btn-red  { border-color:var(--red);  color:var(--red); }
+  .rbox { border:1px solid var(--green3); padding:12px 14px; display:none; flex-direction:column; gap:5px; font-size:0.56rem; letter-spacing:2px; }
+  .rbox.show { display:flex; }
+  .rbox.win  { border-color:var(--green); background:rgba(0,255,65,0.04); }
+  .rbox.lose { border-color:var(--red);   background:rgba(255,51,51,0.04); }
+  .ramt { font-size:0.95rem; }
+  .ramt.pos { color:var(--green); }
+  .ramt.neg { color:var(--red); }
+
+  /* ── Live feed panel ── */
+  #feedPanel { width:185px; min-width:185px; border-left:1px solid var(--green4); padding:9px 7px; background:rgba(0,5,0,0.7); overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
+  .fp-title { font-size:0.44rem; letter-spacing:3px; color:var(--green3); flex-shrink:0; }
+  .fitem { font-size:0.44rem; letter-spacing:1px; border-left:2px solid var(--green4); padding:3px 5px; color:var(--green3); line-height:1.5; }
+  .fitem.fw { border-left-color:var(--green); color:var(--green); }
+  .fitem.fl { border-left-color:var(--red); color:var(--red); }
+  .fitem.fb { border-left-color:var(--gold); color:var(--gold); }
+
+  /* ── Slots ── */
+  .sreels { display:flex; gap:5px; margin:6px 0; }
+  .reel { width:48px; height:48px; border:1px solid var(--green3); display:flex; align-items:center; justify-content:center; font-size:1.3rem; background:rgba(0,18,0,0.5); }
+  .reel.spin { animation:rspin 0.12s linear infinite; }
+  @keyframes rspin { 0%{transform:translateY(-3px)} 50%{transform:translateY(3px)} 100%{transform:translateY(-3px)} }
+
+  /* ── Mines ── */
+  .mgrid { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; max-width:240px; }
+  .mc { aspect-ratio:1; border:1px solid var(--green4); background:rgba(0,18,0,0.6); display:flex; align-items:center; justify-content:center; font-size:0.9rem; cursor:pointer; transition:all 0.12s; }
+  .mc:hover:not(.rs):not(.rb) { border-color:var(--green3); }
+  .mc.rs { border-color:var(--green); background:rgba(0,255,65,0.08); }
+  .mc.rb { border-color:var(--red);   background:rgba(255,50,50,0.12); }
+
+  /* ── Crash ── */
+  #crashCv { border:1px solid var(--green4); background:rgba(0,8,0,0.8); display:block; }
+  .cmult { font-size:1.9rem; color:var(--green); text-shadow:0 0 18px var(--green); font-weight:900; letter-spacing:3px; }
+  .cmult.danger { color:var(--red); text-shadow:0 0 18px var(--red); }
+
+  /* ── BJ ── */
+  .bjhand { display:flex; gap:3px; flex-wrap:wrap; min-height:56px; }
+  .bjcard { width:34px; height:50px; border:1px solid var(--green3); background:rgba(0,18,0,0.8); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.6rem; color:var(--green); }
+  .bjcard.red { color:#ff7070; border-color:#ff7070; }
+  .bjcard.back { background:var(--green4); }
+  .bjsc { font-size:0.48rem; color:var(--green3); letter-spacing:2px; }
+
+  /* ── Roulette ── */
+  #rlCv { border:1px solid var(--green4); display:block; }
+
+  /* ── Plinko ── */
+  #plCv { border:1px solid var(--green4); display:block; }
+
+  /* ── Tower ── */
+  .tgrid { display:flex; flex-direction:column; gap:3px; max-width:230px; }
+  .trow { display:flex; gap:3px; }
+  .tc { flex:1; padding:7px 0; border:1px solid var(--green4); text-align:center; font-size:0.56rem; cursor:pointer; transition:all 0.12s; background:rgba(0,18,0,0.6); }
+  .tc:hover:not(.dis) { border-color:var(--green3); background:rgba(0,36,0,0.6); }
+  .tc.safe { border-color:var(--green); background:rgba(0,255,65,0.08); }
+  .tc.trap { border-color:var(--red);   background:rgba(255,50,50,0.08); }
+  .tc.dis { cursor:default; }
+  .tmult { font-size:0.42rem; color:var(--green3); letter-spacing:1px; }
+
+  /* ── Keno ── */
+  .kgrid { display:grid; grid-template-columns:repeat(10,1fr); gap:2px; max-width:320px; }
+  .knum { aspect-ratio:1; border:1px solid var(--green4); display:flex; align-items:center; justify-content:center; font-size:0.46rem; cursor:pointer; transition:all 0.1s; background:rgba(0,18,0,0.5); }
+  .knum:hover { border-color:var(--green3); }
+  .knum.kp { border-color:var(--gold); background:rgba(255,224,102,0.08); color:var(--gold); }
+  .knum.kh { border-color:var(--green); background:rgba(0,255,65,0.12); }
+  .knum.km { border-color:var(--red);   background:rgba(255,50,50,0.06); color:var(--red); }
+
+  /* ── Poker ── */
+  .pkhand { display:flex; gap:4px; flex-wrap:wrap; }
+  .pkcard { width:42px; height:58px; border:1px solid var(--green3); background:rgba(0,18,0,0.8); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.7rem; cursor:pointer; transition:all 0.18s; position:relative; }
+  .pkcard.held { border-color:var(--gold); background:rgba(255,224,102,0.07); transform:translateY(-5px); }
+  .pkcard.red { color:#ff7070; border-color:#ff7070; }
+  .pkcard.held.red { border-color:var(--gold); }
+  .hlabel { font-size:0.34rem; letter-spacing:2px; color:var(--gold); position:absolute; bottom:2px; }
+
+  /* ── Scratch ── */
+  .scgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; max-width:200px; }
+  .scc { aspect-ratio:1; border:2px solid var(--green4); background:rgba(0,18,0,0.8); display:flex; align-items:center; justify-content:center; font-size:1.2rem; cursor:pointer; position:relative; overflow:hidden; }
+  .scc::before { content:"?"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,28,0,0.95); font-size:1.1rem; color:var(--green3); transition:opacity 0.25s; }
+  .scc.rv::before { opacity:0; pointer-events:none; }
+  .scc.match { border-color:var(--gold); background:rgba(255,224,102,0.08); }
+
+  /* ── Dice ── */
+  .dface { width:58px; height:58px; border:2px solid var(--green); background:rgba(0,28,0,0.8); display:flex; align-items:center; justify-content:center; font-size:1.9rem; margin:6px 0; }
+  .dbtns { display:flex; gap:5px; flex-wrap:wrap; }
+  .dchoice { width:33px; height:33px; border:1px solid var(--green4); background:rgba(0,18,0,0.7); display:flex; align-items:center; justify-content:center; font-size:0.75rem; cursor:pointer; transition:all 0.12s; }
+  .dchoice:hover, .dchoice.sel { border-color:var(--green); background:rgba(0,255,65,0.09); }
+
+  ::-webkit-scrollbar { width:3px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--green4); }
+</style>
+</head>
+<body>
+<canvas id="matrixCanvas"></canvas>
+
+<div id="loadScreen">
+  <h1>ARCH</h1>
+  <div class="load-bar"><div class="load-fill" id="lf"></div></div>
+  <div class="load-txt" id="lt">INITIALISATION...</div>
+</div>
+
+<div id="app">
+  <div id="header">
+    <h1>ARCH</h1>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="bal-chip">◈ <span class="bal-val" id="balDisp">0.000000</span> <span style="font-size:0.46rem;color:var(--green3);">ARCH</span></div>
+      <div class="av-row" id="avRow"></div>
+    </div>
+  </div>
+  <div id="ticker"><span id="tickerInner">◈ ARCH CASINO — ACTIVITY DISCORD ◈</span></div>
+  <div id="body">
+    <div id="sidebar">
+      <div class="sb-title">◈ JOUEURS</div>
+      <div id="plist"></div>
+    </div>
+    <div id="gamesArea">
+      <div class="sec">◈ SÉLECTION DU JEU</div>
+      <div class="ggrid" id="ggrid"></div>
+    </div>
+    <div id="gamePanel">
+      <div class="ph">
+        <button class="btn-back" onclick="closeGame()">← RETOUR</button>
+        <div class="ptitle" id="ptitle"></div>
+      </div>
+      <div id="gcontent"></div>
+    </div>
+    <div id="feedPanel">
+      <div class="fp-title">◈ LIVE FEED</div>
+      <div id="livefeed"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { DiscordSDK } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/+esm';
+
+const CLIENT_ID = '__DISCORD_CLIENT_ID__';
+const discordSdk = new DiscordSDK(CLIENT_ID);
+
+let myUser   = null;
+let token    = null;
+let balance  = 0;
+let myLevel  = 1;
+let players  = {};
+let ws       = null;
+let tickItems = [];
+
+// ── Load helpers ──────────────────────────────────────
+function setLoad(p, t) {
+  document.getElementById('lf').style.width = p + '%';
+  document.getElementById('lt').textContent = t;
+}
+function showApp() {
+  document.getElementById('loadScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  startMatrix();
+}
+
+// ── Init ─────────────────────────────────────────────
+async function init() {
+  try {
+    setLoad(10, 'SDK DISCORD...');
+    await discordSdk.ready();
+
+    setLoad(25, 'AUTORISATION...');
+    const { code } = await discordSdk.commands.authorize({
+      client_id:     CLIENT_ID,
+      response_type: 'code',
+      state:         '',
+      prompt:        'none',
+      scope:         ['identify'],
+    });
+
+    setLoad(45, 'TOKEN...');
+    const tr = await fetch('/api/discord/token', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ code }),
+    });
+    const { access_token } = await tr.json();
+
+    setLoad(60, 'PROFIL...');
+    const auth = await discordSdk.commands.authenticate({ access_token });
+    myUser = auth.user;
+
+    setLoad(75, 'COMPTE ARCH...');
+    const ar = await fetch('/api/discord/auth', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ discord_id: myUser.id, username: myUser.username, avatar: myUser.avatar }),
+    });
+    const ad = await ar.json();
+    if (!ad.token) throw new Error('Auth ARCH échouée: ' + JSON.stringify(ad));
+    token   = ad.token;
+    balance = ad.balance;
+    myLevel = ad.level || 1;
+
+    setLoad(90, 'CONNEXION WS...');
+    await connectWS();
+
+    setLoad(100, 'PRÊT !');
+    buildUI();
+    setTimeout(showApp, 350);
+
+  } catch(e) {
+    document.getElementById('lt').textContent = '⚠ ' + e.message;
+    document.getElementById('lf').style.background = '#ff3333';
+    console.error(e);
+  }
+}
+
+// ── WebSocket ─────────────────────────────────────────
+async function connectWS() {
+  return new Promise(resolve => {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws?token=${token}`);
+    ws.onopen  = () => resolve();
+    ws.onerror = () => resolve();
+    ws.onmessage = e => handleWS(JSON.parse(e.data));
+    ws.onclose = () => setTimeout(connectWS, 3000);
+    setTimeout(resolve, 2500);
+  });
+}
+function handleWS(msg) {
+  if (msg.type === 'player_list') {
+    players = msg.players || {};
+    renderSidebar(); renderAvatars();
+  }
+  if (msg.type === 'game_event')  addFeed(msg);
+  if (msg.type === 'balance_sync') { balance = msg.balance; renderBal(); }
+}
+function wsSend(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+}
+
+// ── API ───────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) },
+  });
+  return r.json();
+}
+
+// ── Render helpers ────────────────────────────────────
+function renderBal() {
+  document.getElementById('balDisp').textContent = balance.toFixed(6);
+}
+function renderSidebar() {
+  const el = document.getElementById('plist');
+  el.innerHTML = '';
+  const entries = Object.entries(players);
+  if (!entries.length && myUser) {
+    el.innerHTML = `<div class="pcard me"><div class="pname">${myUser.username}</div><div class="pbal">${balance.toFixed(4)} ARCH</div><div class="pstatus">EN LIGNE</div></div>`;
+    return;
+  }
+  entries.forEach(([id, p]) => {
+    const isMe = id === myUser?.id;
+    const live = p.status === 'playing';
+    const div = document.createElement('div');
+    div.className = 'pcard' + (isMe?' me':'') + (live?' playing':'');
+    div.innerHTML = `<div class="pname">${p.displayName||'Joueur'}</div>
+      <div class="pbal">${(p.balance||0).toFixed(4)} ARCH</div>
+      <div class="pstatus${live?' live':''}"> ${live?'● JOUE':'EN LIGNE'}</div>
+      ${p.last?`<div class="plast ${p.last.win?'w':'l'}">${p.last.win?'+':''}${(p.last.amt||0).toFixed(4)} ${p.last.game}</div>`:''}`;
+    el.appendChild(div);
+  });
+}
+function renderAvatars() {
+  const row = document.getElementById('avRow');
+  row.innerHTML = '';
+  Object.entries(players).slice(0,5).forEach(([id, p]) => {
+    const av = document.createElement('div');
+    av.className = 'av';
+    if (p.avatar) av.innerHTML = `<img src="https://cdn.discordapp.com/avatars/${id}/${p.avatar}.webp?size=32">`;
+    else av.textContent = (p.displayName||'?')[0].toUpperCase();
+    row.appendChild(av);
+  });
+}
+function addFeed(msg) {
+  const div = document.createElement('div');
+  div.className = 'fitem ' + (msg.big?'fb':msg.win?'fw':'fl');
+  div.textContent = `${msg.displayName} — ${msg.game} ${msg.win?'+':''}${(msg.amount||0).toFixed(4)}`;
+  const feed = document.getElementById('livefeed');
+  feed.insertBefore(div, feed.firstChild);
+  if (feed.children.length > 30) feed.lastChild.remove();
+  // Update ticker
+  const t = document.getElementById('tickerInner');
+  t.textContent += ` ◈ ${msg.displayName} — ${msg.game} ${msg.win?'+':''}${(msg.amount||0).toFixed(4)} ARCH`;
+}
+function broadcast(game, win, amount) {
+  wsSend({ type:'game_result', game, win, amount });
+  renderBal();
+}
+
+// ── Build games grid ──────────────────────────────────
+const GAMES = [
+  { id:'coinflip',  icon:'⬤', name:'COIN FLIP',   desc:'50% — x2',          minLvl:1  },
+  { id:'dice',      icon:'⚄', name:'DICE ROLL',   desc:'1/6 — x5',          minLvl:2  },
+  { id:'slots',     icon:'◈', name:'SLOTS',       desc:'Aligne — x50',      minLvl:3  },
+  { id:'blackjack', icon:'♠', name:'BLACKJACK',   desc:'21 vs dealer',      minLvl:4  },
+  { id:'mines',     icon:'◻', name:'MINES',       desc:'Cash out libre',    minLvl:5  },
+  { id:'crash',     icon:'△', name:'CRASH',       desc:'Cashout avant crash',minLvl:6 },
+  { id:'roulette',  icon:'○', name:'ROULETTE',    desc:'Num. plein x36',    minLvl:7  },
+  { id:'plinko',    icon:'·', name:'PLINKO',      desc:"Jusqu'à x60",       minLvl:8  },
+  { id:'keno',      icon:'■', name:'KENO',        desc:'10 nums — x10000',  minLvl:9  },
+  { id:'poker',     icon:'♣', name:'VIDEO POKER', desc:'Quinte royale x800',minLvl:10 },
+  { id:'scratch',   icon:'◆', name:'SCRATCH',     desc:'3 identiques x50', minLvl:11 },
+  { id:'tower',     icon:'▲', name:'TOWER',       desc:'8 niveaux — x20',  minLvl:12 },
+];
+function buildUI() {
+  renderBal();
+  const grid = document.getElementById('ggrid');
+  grid.innerHTML = '';
+  GAMES.forEach(g => {
+    const locked = myLevel < g.minLvl;
+    const card = document.createElement('div');
+    card.className = 'gcard' + (locked?' locked':'');
+    card.innerHTML = `<div class="gicon">${g.icon}</div>
+      <div class="gname">${g.name}</div>
+      <div class="gdesc">${g.desc}</div>
+      ${locked
+        ? `<div class="lockbadge">🔒</div><div class="locklvl">NV.${g.minLvl}</div>`
+        : `<div class="gbadge">LIVE</div>`}`;
+    if (!locked) card.onclick = () => openGame(g);
+    grid.appendChild(card);
+  });
+  renderSidebar();
+}
+
+// ── Game open/close ───────────────────────────────────
+let curGame = null;
+function openGame(g) {
+  curGame = g.id;
+  document.getElementById('gamesArea').classList.add('hidden');
+  document.getElementById('gamePanel').classList.add('open');
+  document.getElementById('ptitle').textContent = g.icon + ' ' + g.name;
+  document.getElementById('gcontent').innerHTML = '';
+  wsSend({ type:'status', status:'playing' });
+  renderGame(g.id);
+}
+function closeGame() {
+  curGame = null;
+  document.getElementById('gamesArea').classList.remove('hidden');
+  document.getElementById('gamePanel').classList.remove('open');
+  wsSend({ type:'status', status:'idle' });
+  // Refresh balance
+  api('/api/me').then(d => { if (d.balance !== undefined) { balance = d.balance; myLevel = d.level||myLevel; renderBal(); } });
+}
+function renderGame(id) {
+  const c = document.getElementById('gcontent');
+  switch(id) {
+    case 'coinflip':  c.innerHTML = htmlCoinflip();  break;
+    case 'dice':      c.innerHTML = htmlDice();       setTimeout(()=>selectDice(1),0); break;
+    case 'slots':     c.innerHTML = htmlSlots();      break;
+    case 'blackjack': c.innerHTML = htmlBJ();         break;
+    case 'mines':     c.innerHTML = htmlMines();      break;
+    case 'crash':     c.innerHTML = htmlCrash();      break;
+    case 'roulette':  c.innerHTML = htmlRoulette();   setTimeout(drawRL,0); break;
+    case 'plinko':    c.innerHTML = htmlPlinko();     setTimeout(()=>drawPlinko(8,[]),0); break;
+    case 'keno':      c.innerHTML = htmlKeno();       kenoPicks=[]; break;
+    case 'poker':     c.innerHTML = htmlPoker();      break;
+    case 'scratch':   c.innerHTML = htmlScratch();    break;
+    case 'tower':     c.innerHTML = htmlTower();      break;
+  }
+}
+function getAmt(id) { return parseFloat(document.getElementById(id)?.value||0); }
+
+// ══════════════════════════════════════════════════════
+//  GAMES
+// ══════════════════════════════════════════════════════
+
+// ── Coin Flip ─────────────────────────────────────────
+function htmlCoinflip() { return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="cfA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <div class="grow" style="gap:5px;">
+    <button class="btn" onclick="playCF('PILE')">⬤ PILE</button>
+    <button class="btn" onclick="playCF('FACE')">○ FACE</button>
+  </div>
+  <div class="rbox" id="cfR"></div>
+</div>`; }
+async function playCF(choice) {
+  const amt = getAmt('cfA'); if (!amt||amt>balance) return;
+  const d = await api('/api/game/coinflip',{method:'POST',body:JSON.stringify({choice,amount:amt})});
+  const b = document.getElementById('cfR');
+  b.className='rbox show '+(d.won?'win':'lose');
+  b.innerHTML=`<div>${choice} vs ${d.result}</div><div class="ramt ${d.won?'pos':'neg'}">${d.won?'+':'-'}${amt.toFixed(6)} ARCH</div>`;
+  balance=d.balance; renderBal(); broadcast('COINFLIP',d.won,amt);
+}
+
+// ── Dice ──────────────────────────────────────────────
+let dChoice=1;
+function htmlDice() {
+  const f=['⚀','⚁','⚂','⚃','⚄','⚅'];
+  return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="dA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <div class="dbtns">${f.map((_,i)=>`<div class="dchoice" id="dc${i+1}" onclick="selectDice(${i+1})">${f[i]}</div>`).join('')}</div>
+  <div class="dface" id="dFace">⚄</div>
+  <button class="btn" onclick="playDice()">[ LANCER ]</button>
+  <div class="rbox" id="dR"></div>
+</div>`; }
+function selectDice(n) {
+  dChoice=n;
+  for(let i=1;i<=6;i++) document.getElementById('dc'+i)?.classList.remove('sel');
+  document.getElementById('dc'+n)?.classList.add('sel');
+}
+async function playDice() {
+  const f=['⚀','⚁','⚂','⚃','⚄','⚅'];
+  const amt=getAmt('dA'); if(!amt||amt>balance) return;
+  const d=await api('/api/game/dice',{method:'POST',body:JSON.stringify({choice:dChoice,amount:amt})});
+  document.getElementById('dFace').textContent=f[d.rolled-1];
+  const b=document.getElementById('dR');
+  b.className='rbox show '+(d.won?'win':'lose');
+  b.innerHTML=`<div>Choix ${dChoice} vs ${d.rolled}</div><div class="ramt ${d.won?'pos':'neg'}">${d.won?'+':'-'}${amt.toFixed(6)} ARCH</div>`;
+  balance=d.balance; renderBal(); broadcast('DICE',d.won,amt);
+}
+
+// ── Slots ─────────────────────────────────────────────
+function htmlSlots() { return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="slA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <div class="sreels">${[0,1,2,3,4].map(i=>`<div class="reel" id="rl${i}">◈</div>`).join('')}</div>
+  <button class="btn" id="slBtn" onclick="playSlots()">[ SPIN ]</button>
+  <div class="rbox" id="slR"></div>
+</div>`; }
+async function playSlots() {
+  const S=['◈','▣','◼','◈','★','◆','□'];
+  const amt=getAmt('slA'); if(!amt||amt>balance) return;
+  document.getElementById('slBtn').disabled=true;
+  for(let i=0;i<5;i++) document.getElementById('rl'+i)?.classList.add('spin');
+  const d=await api('/api/game/slots',{method:'POST',body:JSON.stringify({amount:amt})});
+  setTimeout(()=>{
+    for(let i=0;i<5;i++){const r=document.getElementById('rl'+i);if(r){r.classList.remove('spin');r.textContent=S[d.grid[i][1].id]||'◈';}}
+    const b=document.getElementById('slR'); const w=d.netDelta>0;
+    b.className='rbox show '+(w?'win':'lose');
+    b.innerHTML=`<div>x${d.totalMult.toFixed(2)}${d.bonusTriggered?' 🎰 BONUS!':''}</div><div class="ramt ${w?'pos':'neg'}">${d.netDelta>0?'+':''}${d.netDelta.toFixed(6)} ARCH</div>`;
+    balance=d.balance; renderBal(); document.getElementById('slBtn').disabled=false;
+    broadcast('SLOTS',w,Math.abs(d.netDelta));
+  },800);
+}
+
+// ── Blackjack ─────────────────────────────────────────
+let bjSt=null;
+function htmlBJ() { return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="bjA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <div style="font-size:0.46rem;letter-spacing:2px;color:var(--green3);">DEALER <span id="bjDS"></span></div>
+  <div class="bjhand" id="bjDH"></div>
+  <div style="font-size:0.46rem;letter-spacing:2px;color:var(--green3);">TOI <span id="bjPS"></span></div>
+  <div class="bjhand" id="bjPH"></div>
+  <div class="grow" style="gap:5px;margin-top:5px;" id="bjActs">
+    <button class="btn" id="bjD" onclick="bjDeal()">[ DEAL ]</button>
+    <button class="btn" id="bjH" onclick="bjAct('hit')"   disabled>[ HIT ]</button>
+    <button class="btn" id="bjS" onclick="bjAct('stand')" disabled>[ STAND ]</button>
+    <button class="btn btn-gold" id="bjDb" onclick="bjAct('double')" disabled style="display:none">[ x2 ]</button>
+  </div>
+  <div class="rbox" id="bjR"></div>
+  <button class="btn" id="bjNG" style="display:none;margin-top:8px;" onclick="bjNew()">[ NOUVELLE PARTIE ]</button>
+</div>`; }
+function bjCard(c) {
+  if(!c||c.v==='?') return `<div class="bjcard back">🂠</div>`;
+  const red=['♥','♦'].includes(c.s);
+  return `<div class="bjcard${red?' red':''}">${c.v}<span style="font-size:0.6rem">${c.s}</span></div>`;
+}
+async function bjDeal() {
+  const amt=getAmt('bjA'); if(!amt||amt>balance) return;
+  document.getElementById('bjD').disabled=true;
+  const d=await api('/api/game/blackjack',{method:'POST',body:JSON.stringify({action:'deal',amount:amt})});
+  if(!d.ok){document.getElementById('bjD').disabled=false;return;}
+  bjSt={playerHand:d.playerHand,dealerFull:d.dealerFull,deck:d.deck,bet:amt,balance:d.balance};
+  document.getElementById('bjDH').innerHTML=d.dealerHand.map(bjCard).join('');
+  document.getElementById('bjPH').innerHTML=d.playerHand.map(bjCard).join('');
+  document.getElementById('bjPS').textContent=d.playerScore;
+  document.getElementById('bjH').disabled=false; document.getElementById('bjS').disabled=false;
+  const dbBtn=document.getElementById('bjDb'); dbBtn.style.display=''; dbBtn.disabled=false;
+  balance=d.balance; renderBal();
+  if(d.status==='blackjack') bjEnd({status:'blackjack',playerHand:d.playerHand,dealerHand:d.dealerFull,playerScore:21,dealerScore:null,delta:amt});
+}
+async function bjAct(action) {
+  if(!bjSt) return;
+  ['bjH','bjS','bjDb'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=true;});
+  const d=await api('/api/game/blackjack',{method:'POST',body:JSON.stringify({action,gameState:bjSt,amount:bjSt.bet})});
+  if(!d.ok){['bjH','bjS'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=false;});return;}
+  if(action==='hit'&&d.status==='playing'){
+    bjSt.playerHand=d.playerHand; bjSt.deck=d.deck;
+    document.getElementById('bjPH').innerHTML=d.playerHand.map(bjCard).join('');
+    document.getElementById('bjPS').textContent=d.playerScore;
+    document.getElementById('bjDb').style.display='none';
+    document.getElementById('bjH').disabled=false; document.getElementById('bjS').disabled=false;
+    return;
+  }
+  bjEnd(d);
+}
+function bjEnd(d) {
+  document.getElementById('bjDH').innerHTML=(d.dealerHand||bjSt?.dealerFull||[]).map(bjCard).join('');
+  document.getElementById('bjDS').textContent=d.dealerScore?'SCORE: '+d.dealerScore:'';
+  ['bjH','bjS','bjDb'].forEach(id=>{const e=document.getElementById(id);if(e){e.disabled=true;e.style.display=id==='bjDb'?'none':'';} });
+  const win=['win','blackjack'].includes(d.status);
+  const delta=d.delta!==undefined?d.delta:(d.status==='push'?0:win?bjSt?.bet||0:-(bjSt?.bet||0));
+  const b=document.getElementById('bjR');
+  b.className='rbox show '+(win?'win':d.status==='push'?'':'lose');
+  b.innerHTML=`<div>${d.status?.toUpperCase()}</div><div class="ramt ${win||d.status==='push'?'pos':'neg'}">${delta>=0?'+':''}${delta.toFixed(6)} ARCH</div>`;
+  if(d.balance){balance=d.balance;renderBal();}
+  document.getElementById('bjNG').style.display='';
+  document.getElementById('bjD').disabled=false;
+  broadcast('BLACKJACK',win,Math.abs(delta)); bjSt=null;
+}
+function bjNew() {
+  bjSt=null;
+  ['bjH','bjS'].forEach(id=>{const e=document.getElementById(id);if(e){e.disabled=false;}});
+  const db=document.getElementById('bjDb'); if(db){db.disabled=false;db.style.display='';}
+  document.getElementById('bjR').className='rbox';
+  document.getElementById('bjNG').style.display='none';
+  document.getElementById('bjD').disabled=false;
+  document.getElementById('bjDH').innerHTML='';
+  document.getElementById('bjPH').innerHTML='';
+  document.getElementById('bjPS').textContent='';
+  document.getElementById('bjDS').textContent='';
+}
+
+// ── Mines ─────────────────────────────────────────────
+let mSt=null;
+function htmlMines() {
+  const cells=Array.from({length:25},(_,i)=>`<div class="mc" id="mc${i}" onclick="mClick(${i})">?</div>`).join('');
+  return `<div class="gui">
+  <div class="grow">
+    <span class="glabel">MISE</span><input class="ginput" id="mA" type="number" min="0.000001" step="0.000001" value="0.001">
+    <span class="glabel" style="min-width:50px">MINES</span><input class="ginput" id="mC" type="number" min="1" max="20" value="3" style="width:55px">
+  </div>
+  <button class="btn" id="mSt" onclick="mStart()">[ DÉMARRER ]</button>
+  <div class="mgrid">${cells}</div>
+  <div class="grow" style="gap:7px;">
+    <button class="btn btn-gold" id="mCO" onclick="mCashout()" disabled>[ CASH OUT ]</button>
+    <span id="mMult" style="font-size:0.56rem;color:var(--green3);letter-spacing:2px;"></span>
+  </div>
+  <div class="rbox" id="mR"></div>
+</div>`; }
+async function mStart() {
+  const amt=getAmt('mA'),mc=parseInt(document.getElementById('mC')?.value||3);
+  if(!amt||amt>balance) return;
+  const d=await api('/api/game/mines',{method:'POST',body:JSON.stringify({action:'start',amount:amt,mines:mc})});
+  if(!d.ok) return;
+  mSt={pos:d.minePositions,bet:amt,mc,rev:0};
+  for(let i=0;i<25;i++){const c=document.getElementById('mc'+i);if(c){c.className='mc';c.textContent='?';}}
+  document.getElementById('mSt').disabled=true; document.getElementById('mCO').disabled=false;
+  document.getElementById('mR').className='rbox'; balance=d.balance; renderBal();
+}
+async function mClick(idx) {
+  if(!mSt) return;
+  const cell=document.getElementById('mc'+idx);
+  if(!cell||cell.classList.contains('rs')||cell.classList.contains('rb')) return;
+  if(mSt.pos.includes(idx)) {
+    cell.className='mc rb'; cell.textContent='💣';
+    mSt.pos.forEach(p=>{const c=document.getElementById('mc'+p);if(c){c.className='mc rb';c.textContent='💣';}});
+    await api('/api/game/mines',{method:'POST',body:JSON.stringify({action:'lose',amount:mSt.bet})});
+    const b=document.getElementById('mR'); b.className='rbox show lose';
+    b.innerHTML=`<div>💥 MINE !</div><div class="ramt neg">-${mSt.bet.toFixed(6)} ARCH</div>`;
+    broadcast('MINES',false,mSt.bet);
+    document.getElementById('mSt').disabled=false; document.getElementById('mCO').disabled=true; mSt=null;
+  } else {
+    cell.className='mc rs'; cell.textContent='◈'; mSt.rev++;
+    let m=1; for(let i=0;i<mSt.rev;i++) m*=(25-mSt.mc-i)/(25-i)*(1/(1-mSt.mc/25));
+    m=Math.max(1.05,parseFloat((m*0.97).toFixed(4)));
+    document.getElementById('mMult').textContent=`x${m.toFixed(3)}`;
+  }
+}
+async function mCashout() {
+  if(!mSt||mSt.rev<=0) return;
+  const d=await api('/api/game/mines',{method:'POST',body:JSON.stringify({action:'cashout',amount:mSt.bet,revealed:mSt.rev,mines:mSt.mc})});
+  const profit=d.gain-mSt.bet;
+  const b=document.getElementById('mR'); b.className='rbox show win';
+  b.innerHTML=`<div>x${d.mult} CASHOUT</div><div class="ramt pos">+${profit.toFixed(6)} ARCH</div>`;
+  balance=d.balance; renderBal(); broadcast('MINES',true,profit);
+  document.getElementById('mSt').disabled=false; document.getElementById('mCO').disabled=true; mSt=null;
+}
+
+// ── Crash ─────────────────────────────────────────────
+let crAnim=null;
+function htmlCrash() { return `<div class="gui">
+  <div class="grow">
+    <span class="glabel">MISE</span><input class="ginput" id="crA" type="number" min="0.000001" step="0.000001" value="0.001">
+    <span class="glabel">CASHOUT</span><input class="ginput" id="crT" type="number" min="1.01" step="0.01" value="2.00" style="width:75px">
+  </div>
+  <canvas id="crashCv" width="300" height="120"></canvas>
+  <div class="cmult" id="crM">1.00x</div>
+  <button class="btn" id="crBtn" onclick="playCrash()">[ JOUER ]</button>
+  <div class="rbox" id="crR"></div>
+</div>`; }
+async function playCrash() {
+  const amt=getAmt('crA'),target=parseFloat(document.getElementById('crT')?.value||2);
+  if(!amt||amt>balance) return;
+  document.getElementById('crBtn').disabled=true;
+  document.getElementById('crR').className='rbox';
+  const d=await api('/api/game/crash',{method:'POST',body:JSON.stringify({action:'play',amount:amt,cashoutAt:target})});
+  let cur=1.0; const pts=[]; const cv=document.getElementById('crashCv'); const ctx=cv?.getContext('2d');
+  const step=()=>{
+    cur+=cur*0.018; pts.push(cur);
+    const el=document.getElementById('crM');
+    if(el){el.textContent=cur.toFixed(2)+'x';el.className='cmult'+(cur>target*0.8?' danger':'');}
+    if(ctx){
+      ctx.clearRect(0,0,cv.width,cv.height);
+      ctx.strokeStyle=cur>=d.crashAt?'#ff3333':'#00ff41'; ctx.lineWidth=2; ctx.beginPath();
+      pts.forEach((v,i)=>{const x=(i/Math.max(pts.length-1,1))*cv.width,y=cv.height-Math.min((v-1)/Math.max(d.crashAt-1,1),1)*cv.height*0.85-6;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+      ctx.stroke();
+    }
+    if(cur<d.crashAt){crAnim=requestAnimationFrame(step);}
+    else{
+      const el=document.getElementById('crM'); if(el){el.textContent=d.crashAt.toFixed(2)+'x 💥';el.className='cmult danger';}
+      const b=document.getElementById('crR'); b.className='rbox show '+(d.won?'win':'lose');
+      b.innerHTML=`<div>Crash @${d.crashAt}x — Cashout @${target}x</div><div class="ramt ${d.won?'pos':'neg'}">${d.won?'+'+(d.gain-amt).toFixed(6):'-'+amt.toFixed(6)} ARCH</div>`;
+      balance=d.balance; renderBal(); document.getElementById('crBtn').disabled=false;
+      broadcast('CRASH',d.won,d.won?d.gain-amt:amt);
+    }
+  };
+  crAnim=requestAnimationFrame(step);
+}
+
+// ── Roulette ──────────────────────────────────────────
+let rlBet={type:'red',value:null};
+function htmlRoulette() { return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="rlA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <canvas id="rlCv" width="190" height="190"></canvas>
+  <div class="grow" style="gap:4px;flex-wrap:wrap;">
+    ${[['red','ROUGE'],['black','NOIR'],['even','PAIR'],['odd','IMPAIR'],['low','1-18'],['high','19-36']].map(([t,l])=>
+      `<button class="btn" style="font-size:0.42rem;padding:4px 7px;" onclick="setRL('${t}')">${l}</button>`).join('')}
+  </div>
+  <div style="font-size:0.48rem;letter-spacing:2px;color:var(--green3);">Mise: <span id="rlBT">ROUGE</span></div>
+  <button class="btn" onclick="playRL()">[ SPIN ]</button>
+  <div class="rbox" id="rlR"></div>
+</div>`; }
+function setRL(t,v=null){rlBet={type:t,value:v};document.getElementById('rlBT').textContent=t.toUpperCase()+(v!==null?' '+v:'');}
+function drawRL(landed=null) {
+  const cv=document.getElementById('rlCv'); if(!cv) return;
+  const ctx=cv.getContext('2d'),cx=95,cy=95,r=88,reds=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+  ctx.clearRect(0,0,190,190);
+  for(let i=0;i<37;i++){
+    const a1=(i/37)*Math.PI*2-Math.PI/2,a2=((i+1)/37)*Math.PI*2-Math.PI/2;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a1,a2);ctx.closePath();
+    ctx.fillStyle=i===0?'#006600':reds.has(i)?'#880000':'#111';
+    if(landed!==null&&i===landed)ctx.fillStyle='#ffe066';
+    ctx.fill();ctx.strokeStyle='#003300';ctx.lineWidth=1;ctx.stroke();
+    const am=(a1+a2)/2;
+    ctx.save();ctx.translate(cx+Math.cos(am)*66,cy+Math.sin(am)*66);ctx.rotate(am+Math.PI/2);
+    ctx.fillStyle='#fff';ctx.font='6px monospace';ctx.textAlign='center';ctx.fillText(i,0,3);ctx.restore();
+  }
+}
+async function playRL() {
+  const amt=getAmt('rlA'); if(!amt||amt>balance) return;
+  const d=await api('/api/game/roulette',{method:'POST',body:JSON.stringify({betType:rlBet.type,betValue:rlBet.value,amount:amt})});
+  let f=0; const spin=()=>{drawRL(f%37);f++;if(f<55)requestAnimationFrame(spin);else{
+    drawRL(d.spin);const w=d.mult>0;
+    const b=document.getElementById('rlR'); b.className='rbox show '+(w?'win':'lose');
+    b.innerHTML=`<div>N°${d.spin} x${d.mult}</div><div class="ramt ${w?'pos':'neg'}">${w?'+'+(d.gain-amt).toFixed(6):'-'+amt.toFixed(6)} ARCH</div>`;
+    balance=d.balance; renderBal(); broadcast('ROULETTE',w,w?d.gain-amt:amt);
+  }};requestAnimationFrame(spin);
+}
+
+// ── Plinko ────────────────────────────────────────────
+function htmlPlinko() { return `<div class="gui">
+  <div class="grow">
+    <span class="glabel">MISE</span><input class="ginput" id="plA" type="number" min="0.000001" step="0.000001" value="0.001">
+    <span class="glabel" style="min-width:55px;">RANGÉES</span>
+    <select class="ginput" id="plR" style="width:65px;background:var(--bg);color:var(--green);">
+      <option value="8">8</option><option value="12">12</option><option value="16">16</option>
+    </select>
+  </div>
+  <canvas id="plCv" width="280" height="220"></canvas>
+  <button class="btn" onclick="playPlinko()">[ LÂCHER ]</button>
+  <div class="rbox" id="plR2"></div>
+</div>`; }
+function drawPlinko(rows) {
+  const cv=document.getElementById('plCv'); if(!cv) return;
+  const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,padT=18,slH=22,boardH=H-slH-padT;
+  ctx.clearRect(0,0,W,H);
+  for(let r=0;r<rows;r++){const pr=r+2;for(let p=0;p<pr;p++){const x=W/2+(p-(pr-1)/2)*(W/(rows+2)),y=padT+(r+1)*(boardH/(rows+1));ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fillStyle='#00aa2a';ctx.fill();}}
+  const m8=[10,3,1.4,0.4,0.2,0.4,1.4,3,10],m12=[20,6,2.5,1.1,0.5,0.2,0.2,0.2,0.5,1.1,2.5,6,20],m16=[60,18,7,2.5,1.2,0.5,0.3,0.2,0.2,0.2,0.3,0.5,1.2,2.5,7,18,60];
+  const ms=rows<=8?m8:rows<=12?m12:m16;const sw=W/ms.length;
+  ms.forEach((m,i)=>{ctx.fillStyle=m>=5?'#ffe066':m>=1?'#00ff41':'#005510';ctx.fillRect(i*sw+1,H-slH,sw-2,slH);ctx.fillStyle='#000';ctx.font='6px monospace';ctx.textAlign='center';ctx.fillText(m+'x',i*sw+sw/2,H-slH/2+3);});
+}
+async function playPlinko() {
+  const amt=getAmt('plA'),rows=parseInt(document.getElementById('plR')?.value||8);
+  if(!amt||amt>balance) return;
+  const d=await api('/api/game/plinko',{method:'POST',body:JSON.stringify({amount:amt,rows})});
+  drawPlinko(rows);
+  const delta=d.gain-amt;const w=delta>0;
+  const b=document.getElementById('plR2'); b.className='rbox show '+(w?'win':'lose');
+  b.innerHTML=`<div>Slot ${d.slot} x${d.mult}</div><div class="ramt ${w?'pos':'neg'}">${delta>0?'+':''}${delta.toFixed(6)} ARCH</div>`;
+  balance=d.balance; renderBal(); broadcast('PLINKO',w,Math.abs(delta));
+}
+
+// ── Keno ──────────────────────────────────────────────
+let kenoPicks=[];
+function htmlKeno() {
+  const nums=Array.from({length:80},(_,i)=>`<div class="knum" id="kn${i+1}" onclick="kToggle(${i+1})">${i+1}</div>`).join('');
+  return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="knA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <div class="kgrid">${nums}</div>
+  <div style="font-size:0.46rem;color:var(--green3);letter-spacing:2px;">Sélectionnés: <span id="knC">0</span>/10</div>
+  <button class="btn" onclick="playKeno()">[ TIRER ]</button>
+  <div class="rbox" id="knR"></div>
+</div>`; }
+function kToggle(n){
+  const el=document.getElementById('kn'+n); if(!el) return;
+  if(kenoPicks.includes(n)){kenoPicks=kenoPicks.filter(x=>x!==n);el.className='knum';}
+  else if(kenoPicks.length<10){kenoPicks.push(n);el.classList.add('kp');}
+  document.getElementById('knC').textContent=kenoPicks.length;
+}
+async function playKeno() {
+  const amt=getAmt('knA'); if(!amt||amt>balance||kenoPicks.length<1) return;
+  const d=await api('/api/game/keno',{method:'POST',body:JSON.stringify({amount:amt,picks:kenoPicks})});
+  for(let i=1;i<=80;i++){const el=document.getElementById('kn'+i);if(!el)continue;if(d.drawn.includes(i)&&kenoPicks.includes(i))el.className='knum kh';else if(d.drawn.includes(i))el.className='knum km';}
+  const w=d.mult>0;const b=document.getElementById('knR'); b.className='rbox show '+(w?'win':'lose');
+  b.innerHTML=`<div>${d.hits} hits x${d.mult}</div><div class="ramt ${w?'pos':'neg'}">${w?'+'+(d.gain-amt).toFixed(6):'-'+amt.toFixed(6)} ARCH</div>`;
+  balance=d.balance; renderBal(); broadcast('KENO',w,w?d.gain-amt:amt);
+}
+
+// ── Video Poker ───────────────────────────────────────
+let pkSt=null,pkHeld=[];
+function htmlPoker() { return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="pkA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <div class="pkhand" id="pkH"></div>
+  <div style="font-size:0.48rem;letter-spacing:2px;color:var(--gold);" id="pkN"></div>
+  <div class="grow" style="gap:5px;margin-top:5px;">
+    <button class="btn" id="pkD" onclick="pkDeal()">[ DEAL ]</button>
+    <button class="btn" id="pkDr" onclick="pkDraw()" disabled>[ TIRER ]</button>
+  </div>
+  <div class="rbox" id="pkR"></div>
+</div>`; }
+function renderPoker(hand,held=[]){
+  const el=document.getElementById('pkH'); if(!el) return;
+  el.innerHTML=hand.map((c,i)=>{const red=['♥','♦'].includes(c.s),h=held.includes(i);
+    return `<div class="pkcard${red?' red':''}${h?' held':''}" onclick="pkToggle(${i})">${c.v}<span style="font-size:0.6rem">${c.s}</span>${h?'<div class="hlabel">HOLD</div>':''}`;
+  }).join('');
+}
+function pkToggle(i){if(!pkSt)return;pkHeld=pkHeld.includes(i)?pkHeld.filter(x=>x!==i):[...pkHeld,i];renderPoker(pkSt.hand,pkHeld);}
+async function pkDeal(){
+  const amt=getAmt('pkA'); if(!amt||amt>balance) return;
+  document.getElementById('pkD').disabled=true;
+  const d=await api('/api/game/poker',{method:'POST',body:JSON.stringify({action:'deal',amount:amt})});
+  if(!d.ok){document.getElementById('pkD').disabled=false;return;}
+  pkSt={hand:d.hand,deck:d.deck,bet:amt}; pkHeld=[];
+  renderPoker(d.hand,[]); document.getElementById('pkDr').disabled=false;
+  document.getElementById('pkR').className='rbox'; document.getElementById('pkN').textContent='';
+  balance=d.balance; renderBal();
+}
+async function pkDraw(){
+  if(!pkSt) return;
+  const d=await api('/api/game/poker',{method:'POST',body:JSON.stringify({action:'draw',held:pkHeld,gameState:pkSt})});
+  renderPoker(d.hand,pkHeld); document.getElementById('pkN').textContent=d.result?.name||'';
+  const w=d.result?.mult>0; const delta=d.gain-pkSt.bet;
+  const b=document.getElementById('pkR'); b.className='rbox show '+(w?'win':'lose');
+  b.innerHTML=`<div>${d.result?.name}</div><div class="ramt ${w?'pos':'neg'}">${delta>0?'+':''}${delta.toFixed(6)} ARCH</div>`;
+  balance=d.balance; renderBal(); broadcast('POKER',w,Math.abs(delta));
+  document.getElementById('pkD').disabled=false; document.getElementById('pkDr').disabled=true; pkSt=null;
+}
+
+// ── Scratch ───────────────────────────────────────────
+let scData=null,scRev=[];
+function htmlScratch(){
+  const cells=Array.from({length:9},(_,i)=>`<div class="scc" id="sc${i}" onclick="scReveal(${i})"></div>`).join('');
+  return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="scA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <button class="btn" id="scB" onclick="buyScratch()">[ ACHETER ]</button>
+  <div class="scgrid">${cells}</div>
+  <div class="rbox" id="scR"></div>
+</div>`; }
+async function buyScratch(){
+  const amt=getAmt('scA'); if(!amt||amt>balance) return;
+  const d=await api('/api/game/scratch',{method:'POST',body:JSON.stringify({amount:amt})});
+  scData=d; scRev=[];
+  for(let i=0;i<9;i++){const c=document.getElementById('sc'+i);if(c)c.className='scc';}
+  document.getElementById('scB').disabled=true; document.getElementById('scR').className='rbox';
+  balance=d.balance; renderBal();
+}
+function scReveal(i){
+  if(!scData||scRev.includes(i)) return;
+  scRev.push(i);
+  const c=document.getElementById('sc'+i); if(c){c.classList.add('rv');c.textContent=scData.grid[i];if(scData.winSym>=0&&scData.gridIdx[i]===scData.winSym)c.classList.add('match');}
+  if(scRev.length===9){
+    const w=scData.mult>0; const delta=scData.gain-getAmt('scA');
+    const b=document.getElementById('scR'); b.className='rbox show '+(w?'win':'lose');
+    b.innerHTML=`<div>x${scData.mult}</div><div class="ramt ${w?'pos':'neg'}">${delta>0?'+':''}${delta.toFixed(6)} ARCH</div>`;
+    broadcast('SCRATCH',w,Math.abs(delta)); document.getElementById('scB').disabled=false; scData=null;
+  }
+}
+
+// ── Tower ─────────────────────────────────────────────
+let twSt=null;
+const TM=[1.4,2,2.8,4,5.5,8,12,20];
+function htmlTower(){
+  const rows=Array.from({length:8},(_,i)=>{const lvl=7-i;return `<div class="trow" id="tr${lvl}">${[0,1,2].map(t=>`<div class="tc dis" id="tc${lvl}_${t}" onclick="twClick(${lvl},${t})">?</div>`).join('')}<div class="tmult">x${TM[lvl]}</div></div>`;}).join('');
+  return `<div class="gui">
+  <div class="grow"><span class="glabel">MISE</span><input class="ginput" id="twA" type="number" min="0.000001" step="0.000001" value="0.001"></div>
+  <button class="btn" id="twS" onclick="twStart()">[ DÉMARRER ]</button>
+  <div class="tgrid">${rows}</div>
+  <div class="grow" style="gap:7px;">
+    <button class="btn btn-gold" id="twCO" onclick="twCashout()" disabled>[ CASH OUT ]</button>
+    <span id="twM" style="font-size:0.56rem;color:var(--green3);letter-spacing:2px;"></span>
+  </div>
+  <div class="rbox" id="twR"></div>
+</div>`; }
+function twActivate(lvl){if(lvl>=8)return;for(let t=0;t<3;t++){const c=document.getElementById(`tc${lvl}_${t}`);if(c)c.className='tc';}}
+async function twStart(){
+  const amt=getAmt('twA'); if(!amt||amt>balance) return;
+  const d=await api('/api/game/tower',{method:'POST',body:JSON.stringify({action:'start',amount:amt})});
+  if(!d.ok) return;
+  twSt={traps:d.traps,bet:amt,level:0};
+  document.getElementById('twS').disabled=true; document.getElementById('twCO').disabled=false;
+  document.getElementById('twR').className='rbox'; balance=d.balance; renderBal(); twActivate(0);
+}
+async function twClick(lvl,choice){
+  if(!twSt||twSt.level!==lvl) return;
+  const d=await api('/api/game/tower',{method:'POST',body:JSON.stringify({action:'step',level:lvl,choice,towerState:{traps:twSt.traps,bet:twSt.bet}})});
+  const trap=document.getElementById(`tc${lvl}_${twSt.traps[lvl]}`); if(trap){trap.className='tc trap';trap.textContent='💣';}
+  const safe=document.getElementById(`tc${lvl}_${choice}`);
+  if(d.hit){
+    if(safe){safe.className='tc trap';safe.textContent='💣';}
+    const b=document.getElementById('twR'); b.className='rbox show lose';
+    b.innerHTML=`<div>💥 PIÈGE nv.${lvl+1}</div><div class="ramt neg">-${twSt.bet.toFixed(6)} ARCH</div>`;
+    broadcast('TOWER',false,twSt.bet);
+    document.getElementById('twS').disabled=false; document.getElementById('twCO').disabled=true; twSt=null;
+  } else {
+    if(safe){safe.className='tc safe';safe.textContent='✓';}
+    twSt.level=lvl+1; document.getElementById('twM').textContent=`x${TM[lvl]}`;
+    if(d.cleared) twCashout(); else twActivate(twSt.level);
+  }
+}
+async function twCashout(){
+  if(!twSt||twSt.level<=0) return;
+  const d=await api('/api/game/tower',{method:'POST',body:JSON.stringify({action:'cashout',towerState:{bet:twSt.bet,level:twSt.level}})});
+  const profit=d.gain-twSt.bet;
+  const b=document.getElementById('twR'); b.className='rbox show win';
+  b.innerHTML=`<div>x${d.mult} CASHOUT</div><div class="ramt pos">+${profit.toFixed(6)} ARCH</div>`;
+  balance=d.balance; renderBal(); broadcast('TOWER',true,profit);
+  document.getElementById('twS').disabled=false; document.getElementById('twCO').disabled=true; twSt=null;
+}
+
+// ── Matrix ────────────────────────────────────────────
+function startMatrix(){
+  const c=document.getElementById('matrixCanvas'),ctx=c.getContext('2d');
+  const chars='ARCH01アイウエオ◈▣★◆□▲△○';
+  let W,H,drops;
+  function init(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;drops=Array(Math.floor(W/14)).fill(1);}
+  function draw(){ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#00ff41';ctx.font='13px monospace';drops.forEach((y,i)=>{ctx.fillText(chars[Math.floor(Math.random()*chars.length)],i*14,y*14);if(y*14>H&&Math.random()>0.975)drops[i]=0;drops[i]++;});}
+  init(); window.addEventListener('resize',init); setInterval(draw,55);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -4,10 +4,12 @@
 // ============================================================
 
 const http   = require('http');
+const https  = require('https');
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const { Pool } = require('pg');
+const { WebSocketServer } = require('ws');
 
 // ============================================================
 //  CONFIG
@@ -19,6 +21,8 @@ const CONFIG = {
   scanDuration: 25,
   claimWindow:  5,
   adminPass:    process.env.ADMIN_PASS || 'CHANGE_MOI',
+  discordClientId:     process.env.DISCORD_CLIENT_ID     || '1479233676544970834',
+  discordClientSecret: process.env.DISCORD_CLIENT_SECRET || 't0TzG4PK-8oOnuDZYA8uGwkYKECbxYw8',
 };
 
 // ============================================================
@@ -113,6 +117,43 @@ async function applyCashback(username, lostAmt, perks) {
 function applyLuckyMult(mult, perks) {
   if (!perks['lucky_spin'] || mult <= 0) return mult;
   return parseFloat((mult * (1 + perks['lucky_spin'] * 0.05)).toFixed(4));
+}
+
+// ============================================================
+//  DISCORD ACTIVITY
+// ============================================================
+async function discordTokenExchange(code) {
+  const params = new URLSearchParams({ client_id: CONFIG.discordClientId, client_secret: CONFIG.discordClientSecret, grant_type: "authorization_code", code });
+  return new Promise((resolve, reject) => {
+    const req = https.request({ hostname: "discord.com", path: "/api/oauth2/token", method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }, res => { let d = ""; res.on("data", c => d += c); res.on("end", () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } }); });
+    req.on("error", reject); req.write(params.toString()); req.end();
+  });
+}
+async function getOrCreateDiscordUser(discordId, discordName, discordAvatar) {
+  const archUsername = "discord_" + discordId;
+  const archPassword = crypto.createHash("sha256").update(discordId + "arch_discord_s4lt").digest("hex");
+  const hashed = crypto.createHash("sha256").update(archPassword + "arch_s4lt").digest("hex");
+  await query("INSERT INTO users (username, password) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING", [archUsername, hashed]);
+  await query("INSERT INTO discord_users (discord_id, arch_user, display_name, avatar) VALUES ($1, $2, $3, $4) ON CONFLICT (discord_id) DO UPDATE SET display_name=$3, avatar=$4", [discordId, archUsername, discordName, discordAvatar]).catch(()=>{});
+  const token = mktoken();
+  await query("INSERT INTO sessions (token, username) VALUES ($1, $2)", [token, archUsername]);
+  const u = await query("SELECT balance, xp FROM users WHERE username=$1", [archUsername]);
+  const lvl = levelFromXp(u.rows[0]?.xp || 0);
+  return { token, balance: u.rows[0]?.balance || 0, level: lvl.level, username: archUsername };
+}
+const wsClients = new Map();
+function wsBroadcastPlayerList() {
+  const players = {};
+  wsClients.forEach((c) => { if (c.discordId) players[c.discordId] = { displayName: c.displayName, avatar: c.avatar, balance: c.balance||0, status: c.status||"idle", last: c.last||null }; });
+  const msg = JSON.stringify({ type: "player_list", players });
+  wsClients.forEach(c => { try { if (c.ws.readyState === 1) c.ws.send(msg); } catch {} });
+}
+function wsBroadcastEvent(data, excludeToken) {
+  const msg = JSON.stringify(data);
+  wsClients.forEach((c, tok) => { if (tok !== excludeToken) try { if (c.ws.readyState === 1) c.ws.send(msg); } catch {} });
+}
+async function initDiscordDB() {
+  await query("CREATE TABLE IF NOT EXISTS discord_users (discord_id TEXT PRIMARY KEY, arch_user TEXT NOT NULL, display_name TEXT, avatar TEXT, updated_at TEXT DEFAULT now()::text)");
 }
 
 async function initDB() {
@@ -1082,6 +1123,25 @@ async function api(req, res) {
     return json(res, 200, { users: users.rows });
   }
 
+  // DISCORD — Token exchange
+  if (endpoint === '/api/discord/token' && req.method === 'POST') {
+    const { code } = await body(req);
+    if (!code) return json(res, 400, { error: 'code manquant' });
+    try {
+      const result = await discordTokenExchange(code);
+      return json(res, 200, { access_token: result.access_token });
+    } catch(e) { return json(res, 500, { error: e.message }); }
+  }
+  // DISCORD — Auth (get or create ARCH account)
+  if (endpoint === '/api/discord/auth' && req.method === 'POST') {
+    const { discord_id, username: dName, avatar } = await body(req);
+    if (!discord_id) return json(res, 400, { error: 'discord_id manquant' });
+    try {
+      const result = await getOrCreateDiscordUser(discord_id, dName, avatar);
+      return json(res, 200, result);
+    } catch(e) { return json(res, 500, { error: e.message }); }
+  }
+
   return json(res, 404, { error: 'Route inconnue.' });
 }
 
@@ -1100,6 +1160,17 @@ const server = http.createServer(async (req, res) => {
 
   if (req.url.startsWith('/api/')) return api(req, res);
 
+  // Activity Discord — sert activity.html avec CLIENT_ID injecté
+  if (req.url === '/activity' || req.url === '/activity/') {
+    fs.readFile('./activity.html', 'utf8', (err, data) => {
+      if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
+      const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(injected);
+    });
+    return;
+  }
+
   let filePath = '.' + req.url;
   if (filePath === './') filePath = './index.html';
   const ext  = path.extname(filePath);
@@ -1114,15 +1185,90 @@ const server = http.createServer(async (req, res) => {
 // ============================================================
 //  DÉMARRAGE
 // ============================================================
-initDB().then(() => {
-  server.listen(CONFIG.port, () => {
-    console.log('');
-    console.log('╔══════════════════════════════════════════════╗');
-    console.log('║   ARCH — PostgreSQL                          ║');
-    console.log(`║   http://localhost:${CONFIG.port}                     ║`);
-    console.log('╚══════════════════════════════════════════════╝');
+// ============================================================
+//  WEBSOCKET — Discord Activity live feed
+// ============================================================
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+wss.on('connection', async (ws, req) => {
+  const wsUrl  = new URL(req.url, 'http://localhost');
+  const token  = wsUrl.searchParams.get('token');
+  if (!token) { ws.close(); return; }
+
+  // Resolve identity from token
+  let client = { ws, discordId: null, displayName: null, avatar: null, balance: 0, status: 'idle', last: null };
+  try {
+    const s = await query('SELECT username FROM sessions WHERE token=$1', [token]);
+    if (s.rows.length) {
+      const archUser = s.rows[0].username;
+      const d = await query('SELECT * FROM discord_users WHERE arch_user=$1', [archUser]).catch(()=>({rows:[]}));
+      if (d.rows.length) {
+        client.discordId   = d.rows[0].discord_id;
+        client.displayName = d.rows[0].display_name;
+        client.avatar      = d.rows[0].avatar;
+      }
+      const u = await query('SELECT balance FROM users WHERE username=$1', [archUser]);
+      client.balance = u.rows[0]?.balance || 0;
+      client.archUser = archUser;
+    }
+  } catch(e) { console.error('[WS] auth error:', e.message); }
+
+  wsClients.set(token, client);
+  wsBroadcastPlayerList();
+
+  ws.on('message', async raw => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      const c   = wsClients.get(token);
+      if (!c) return;
+
+      if (msg.type === 'status') {
+        c.status = msg.status;
+        wsBroadcastPlayerList();
+      }
+      if (msg.type === 'game_result') {
+        // Refresh balance from DB
+        const u = await query('SELECT balance FROM users WHERE username=$1', [c.archUser]).catch(()=>({rows:[]}));
+        c.balance = u.rows[0]?.balance || c.balance;
+        c.last = { game: msg.game, win: msg.win, amt: msg.amount };
+        wsBroadcastEvent({
+          type:        'game_event',
+          discord_id:  c.discordId,
+          displayName: c.displayName || 'Joueur',
+          game:        msg.game,
+          win:         msg.win,
+          amount:      msg.amount,
+          big:         msg.amount > 0.05,
+        }, token);
+        // Push balance update to sender
+        try { ws.send(JSON.stringify({ type: 'balance_sync', balance: c.balance })); } catch {}
+        wsBroadcastPlayerList();
+      }
+    } catch(e) { console.error('[WS] msg error:', e.message); }
   });
-}).catch(err => {
-  console.error('[FATAL] PostgreSQL connexion échouée :', err.message);
-  process.exit(1);
+
+  ws.on('close', () => {
+    wsClients.delete(token);
+    wsBroadcastPlayerList();
+  });
 });
+
+// ============================================================
+//  DÉMARRAGE
+// ============================================================
+initDB()
+  .then(() => initDiscordDB())
+  .then(() => {
+    server.listen(CONFIG.port, () => {
+      console.log('');
+      console.log('╔══════════════════════════════════════════════╗');
+      console.log('║   ARCH — PostgreSQL + Discord Activity       ║');
+      console.log(`║   http://localhost:${CONFIG.port}                     ║`);
+      console.log('║   Activity: /activity                        ║');
+      console.log('╚══════════════════════════════════════════════╝');
+    });
+  }).catch(err => {
+    console.error('[FATAL] PostgreSQL connexion échouée :', err.message);
+    process.exit(1);
+  });
+
