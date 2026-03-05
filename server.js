@@ -1,12 +1,13 @@
 // ============================================================
-//  ARCH SERVER — Art Rarity Collection Hub
+//  ARCH SERVER — PostgreSQL version
 //  Lance avec : node server.js
 // ============================================================
 
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
+const http   = require('http');
+const fs     = require('fs');
+const path   = require('path');
 const crypto = require('crypto');
+const { Pool } = require('pg');
 
 // ============================================================
 //  CONFIG
@@ -14,76 +15,108 @@ const crypto = require('crypto');
 const CONFIG = {
   port:         process.env.PORT || 3000,
   currency:     'ARCH',
-  scanInterval: 60,      // secondes totales par cycle
-  scanDuration: 50,      // secondes d'animation de scan
-  claimWindow:  10,      // secondes pour claim après scan
-  dbFile:       './arch.db',
-  adminPass:    'CHANGE_MOI',  // ← change avant de deploy !
+  scanInterval: 60,
+  scanDuration: 50,
+  claimWindow:  10,
+  adminPass:    process.env.ADMIN_PASS || 'CHANGE_MOI',
 };
 
 // ============================================================
+//  POSTGRESQL
+// ============================================================
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+async function query(sql, params = []) {
+  const client = await pool.connect();
+  try { return await client.query(sql, params); }
+  finally { client.release(); }
+}
+
+async function initDB() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS users (
+      username      TEXT PRIMARY KEY,
+      password      TEXT NOT NULL,
+      balance       DOUBLE PRECISION DEFAULT 0,
+      total_earned  DOUBLE PRECISION DEFAULT 0,
+      scans         INTEGER DEFAULT 0,
+      claims        INTEGER DEFAULT 0,
+      last_scan     BIGINT DEFAULT 0,
+      created_at    TEXT DEFAULT now()::text
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token      TEXT PRIMARY KEY,
+      username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      created_at BIGINT DEFAULT extract(epoch from now())::bigint
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS pending_claims (
+      username   TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+      reward     DOUBLE PRECISION NOT NULL,
+      expires_at BIGINT NOT NULL
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS history (
+      id         SERIAL PRIMARY KEY,
+      username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      amount     DOUBLE PRECISION NOT NULL,
+      reason     TEXT DEFAULT '',
+      auto       BOOLEAN DEFAULT false,
+      created_at TEXT DEFAULT now()::text
+    )
+  `);
+  console.log('[DB] Tables PostgreSQL prêtes.');
+}
+
+// ============================================================
 //  GÉNÉRATEUR DE RÉCOMPENSE
-//  Format : 0.000000 → 9.999999
-//  La quasi-totalité des résultats sera < 0.01
-//  Avoir >= 1.0 est rarissime
 // ============================================================
 function generateReward() {
   const r = Math.random();
-
-  // Répartition des probabilités
-  if (r < 0.60) {
-    // 60% → micro reward : 0.000001 – 0.000999
-    return parseFloat((Math.random() * 0.000999 + 0.000001).toFixed(6));
-  } else if (r < 0.85) {
-    // 25% → petit reward : 0.001000 – 0.009999
-    return parseFloat((Math.random() * 0.008999 + 0.001).toFixed(6));
-  } else if (r < 0.96) {
-    // 11% → reward moyen : 0.010000 – 0.099999
-    return parseFloat((Math.random() * 0.089999 + 0.01).toFixed(6));
-  } else if (r < 0.995) {
-    // 3.5% → bon reward : 0.100000 – 0.999999
-    return parseFloat((Math.random() * 0.899999 + 0.1).toFixed(6));
-  } else if (r < 0.9995) {
-    // 0.45% → gros reward : 1.000000 – 4.999999
-    return parseFloat((Math.random() * 3.999999 + 1.0).toFixed(6));
-  } else {
-    // 0.05% → jackpot : 5.000000 – 9.999999
-    return parseFloat((Math.random() * 4.999999 + 5.0).toFixed(6));
-  }
+  if (r < 0.60)    return parseFloat((Math.random() * 0.000999 + 0.000001).toFixed(6));
+  if (r < 0.85)    return parseFloat((Math.random() * 0.008999 + 0.001).toFixed(6));
+  if (r < 0.96)    return parseFloat((Math.random() * 0.089999 + 0.01).toFixed(6));
+  if (r < 0.995)   return parseFloat((Math.random() * 0.899999 + 0.1).toFixed(6));
+  if (r < 0.9995)  return parseFloat((Math.random() * 3.999999 + 1.0).toFixed(6));
+  return parseFloat((Math.random() * 4.999999 + 5.0).toFixed(6));
 }
-
-// ============================================================
-//  BASE DE DONNÉES JSON
-// ============================================================
-let db = { users: {}, sessions: {}, pending_claims: {} };
-
-function loadDB() {
-  if (fs.existsSync(CONFIG.dbFile)) {
-    try { db = JSON.parse(fs.readFileSync(CONFIG.dbFile, 'utf8')); }
-    catch(e) { console.log('[DB] Corrompue, reset.'); }
-  }
-  db.users         = db.users         || {};
-  db.sessions      = db.sessions      || {};
-  db.pending_claims = db.pending_claims || {};
-}
-
-function saveDB() {
-  fs.writeFileSync(CONFIG.dbFile, JSON.stringify(db, null, 2));
-}
-
-loadDB();
-setInterval(saveDB, 20000);
 
 // ============================================================
 //  UTILS
 // ============================================================
-function hash(pass)  { return crypto.createHash('sha256').update(pass + 'arch_s4lt').digest('hex'); }
-function token()     { return crypto.randomBytes(32).toString('hex'); }
-function getUser(tk) { const u = db.sessions[tk]; return u ? db.users[u] : null; }
+function hash(pass) { return crypto.createHash('sha256').update(pass + 'arch_s4lt').digest('hex'); }
+function mktoken()  { return crypto.randomBytes(32).toString('hex'); }
+
+async function getUser(tk) {
+  if (!tk) return null;
+  const s = await query('SELECT username FROM sessions WHERE token = $1', [tk]);
+  if (!s.rows.length) return null;
+  const u = await query('SELECT * FROM users WHERE username = $1', [s.rows[0].username]);
+  return u.rows[0] || null;
+}
+
+async function addHistory(username, amount, reason = '', auto = false) {
+  await query(
+    'INSERT INTO history (username, amount, reason, auto) VALUES ($1, $2, $3, $4)',
+    [username, amount, reason, auto]
+  );
+  await query(`
+    DELETE FROM history WHERE id IN (
+      SELECT id FROM history WHERE username = $1 ORDER BY id DESC OFFSET 100
+    )
+  `, [username]);
+}
 
 function json(res, status, data) {
   res.writeHead(status, {
-    'Content-Type':  'application/json',
+    'Content-Type':                 'application/json',
     'Access-Control-Allow-Origin':  '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -95,33 +128,28 @@ function body(req) {
   return new Promise(resolve => {
     let s = '';
     req.on('data', c => s += c);
-    req.on('end',  () => { try { resolve(JSON.parse(s)); } catch { resolve({}); } });
+    req.on('end', () => { try { resolve(JSON.parse(s)); } catch { resolve({}); } });
   });
 }
 
 // ============================================================
 //  NETTOYAGE CLAIMS EXPIRÉS
 // ============================================================
-setInterval(() => {
-  const now = Date.now();
-  for (const [u, claim] of Object.entries(db.pending_claims)) {
-    if (now > claim.expires_at) {
-      // Donne 50% de la reward automatiquement
-      if (db.users[u]) {
-        const half = parseFloat((claim.reward / 2).toFixed(6));
-        db.users[u].balance      += half;
-        db.users[u].total_earned += half;
-        db.users[u].history.unshift({ amount: half, at: new Date().toISOString(), auto: true });
-        if (db.users[u].history.length > 100) db.users[u].history.pop();
-        console.log(`[EXPIRE] ${u} → 50% auto : +${half} ARCH`);
-      }
-      delete db.pending_claims[u];
+setInterval(async () => {
+  try {
+    const expired = await query('SELECT * FROM pending_claims WHERE expires_at < $1', [Date.now()]);
+    for (const claim of expired.rows) {
+      const half = parseFloat((claim.reward / 2).toFixed(6));
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [half, claim.username]);
+      await addHistory(claim.username, half, 'auto_expire', true);
+      await query('DELETE FROM pending_claims WHERE username = $1', [claim.username]);
+      console.log(`[EXPIRE] ${claim.username} → +${half} ARCH`);
     }
-  }
+  } catch(e) { console.error('[EXPIRE ERR]', e.message); }
 }, 3000);
 
 // ============================================================
-//  API ROUTES
+//  API
 // ============================================================
 async function api(req, res) {
   const url      = new URL(req.url, 'http://localhost');
@@ -133,17 +161,9 @@ async function api(req, res) {
     const { username, password } = await body(req);
     if (!username || !password || username.length < 3 || password.length < 4)
       return json(res, 400, { error: 'Pseudo (3+ chars) et mot de passe (4+ chars) requis.' });
-    if (db.users[username])
-      return json(res, 400, { error: 'Pseudo déjà pris.' });
-    db.users[username] = {
-      username, password: hash(password),
-      balance: 0, total_earned: 0,
-      scans: 0, claims: 0,
-      last_scan: 0,
-      history: [],
-      created_at: new Date().toISOString(),
-    };
-    saveDB();
+    const exists = await query('SELECT 1 FROM users WHERE username = $1', [username]);
+    if (exists.rows.length) return json(res, 400, { error: 'Pseudo déjà pris.' });
+    await query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, hash(password)]);
     console.log(`[REGISTER] ${username}`);
     return json(res, 200, { ok: true });
   }
@@ -151,168 +171,127 @@ async function api(req, res) {
   // LOGIN
   if (endpoint === '/api/login' && req.method === 'POST') {
     const { username, password } = await body(req);
-    const user = db.users[username];
-    if (!user || user.password !== hash(password))
+    const u = await query('SELECT * FROM users WHERE username = $1', [username]);
+    if (!u.rows.length || u.rows[0].password !== hash(password))
       return json(res, 401, { error: 'Identifiants incorrects.' });
-    const tok = token();
-    db.sessions[tok] = username;
-    saveDB();
+    const tok = mktoken();
+    await query('INSERT INTO sessions (token, username) VALUES ($1, $2)', [tok, username]);
     console.log(`[LOGIN] ${username}`);
     return json(res, 200, { ok: true, token: tok, username });
   }
 
-  // SCAN — le client envoie ça au début du cycle (le serveur génère la reward à l'avance)
+  // SCAN
   if (endpoint === '/api/scan' && req.method === 'POST') {
-    const user = getUser(tk);
+    const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
-
     const now     = Date.now();
-    const elapsed = (now - user.last_scan) / 1000;
-
+    const elapsed = (now - Number(user.last_scan)) / 1000;
     if (elapsed < CONFIG.scanInterval - 2) {
-      const wait = Math.ceil(CONFIG.scanInterval - elapsed);
-      return json(res, 429, { error: `Attends encore ${wait}s.`, wait });
+      return json(res, 429, { error: `Attends encore ${Math.ceil(CONFIG.scanInterval - elapsed)}s.`, wait: Math.ceil(CONFIG.scanInterval - elapsed) });
     }
-
-    // Générer la reward maintenant (le client l'animera)
     const reward = generateReward();
-    user.last_scan = now;
-    user.scans++;
-
-    // Stocker le claim en attente (expire après scanDuration + claimWindow)
-    db.pending_claims[user.username] = {
-      reward,
-      expires_at: now + (CONFIG.scanDuration + CONFIG.claimWindow) * 1000,
-    };
-
-    saveDB();
-    console.log(`[SCAN] ${user.username} → reward générée : ${reward} ARCH`);
-
-    return json(res, 200, {
-      ok: true,
-      reward,                        // le client anime ce chiffre
-      scan_duration:  CONFIG.scanDuration,
-      claim_window:   CONFIG.claimWindow,
-    });
+    await query('UPDATE users SET last_scan = $1, scans = scans + 1 WHERE username = $2', [now, user.username]);
+    const expiresAt = now + (CONFIG.scanDuration + CONFIG.claimWindow) * 1000;
+    await query(
+      'INSERT INTO pending_claims (username, reward, expires_at) VALUES ($1, $2, $3) ON CONFLICT (username) DO UPDATE SET reward = $2, expires_at = $3',
+      [user.username, reward, expiresAt]
+    );
+    console.log(`[SCAN] ${user.username} → ${reward} ARCH`);
+    return json(res, 200, { ok: true, reward, scan_duration: CONFIG.scanDuration, claim_window: CONFIG.claimWindow });
   }
 
-  // CLAIM — le client appuie sur "Claim" pendant la fenêtre de 10s
+  // CLAIM
   if (endpoint === '/api/claim' && req.method === 'POST') {
-    const user  = getUser(tk);
+    const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
-
-    const claim = db.pending_claims[user.username];
-    if (!claim)       return json(res, 400, { error: 'Rien à claim.' });
-    if (Date.now() > claim.expires_at) {
-      delete db.pending_claims[user.username];
+    const c = await query('SELECT * FROM pending_claims WHERE username = $1', [user.username]);
+    if (!c.rows.length) return json(res, 400, { error: 'Rien à claim.' });
+    const claim = c.rows[0];
+    if (Date.now() > Number(claim.expires_at)) {
+      await query('DELETE FROM pending_claims WHERE username = $1', [user.username]);
       return json(res, 400, { error: 'Trop tard — reward expirée.' });
     }
-
-    user.balance      += claim.reward;
-    user.total_earned += claim.reward;
-    user.claims++;
-    user.history.unshift({
-      amount: claim.reward,
-      at:     new Date().toISOString(),
-    });
-    if (user.history.length > 100) user.history.pop();
-    delete db.pending_claims[user.username];
-
-    saveDB();
+    await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1, claims = claims + 1 WHERE username = $2', [claim.reward, user.username]);
+    await addHistory(user.username, claim.reward, 'claim');
+    await query('DELETE FROM pending_claims WHERE username = $1', [user.username]);
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
     console.log(`[CLAIM] ${user.username} → +${claim.reward} ARCH`);
-
-    return json(res, 200, { ok: true, reward: claim.reward, balance: user.balance });
+    return json(res, 200, { ok: true, reward: claim.reward, balance: updated.rows[0].balance });
   }
 
-  // EXPIRE — le client appelle ça quand le claim window expire (donne 50%)
+  // EXPIRE
   if (endpoint === '/api/expire' && req.method === 'POST') {
-    const user  = getUser(tk);
+    const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
-    const claim = db.pending_claims[user.username];
-    if (!claim) return json(res, 200, { ok: true, reward: 0 }); // déjà expiré côté serveur
-    const half = parseFloat((claim.reward / 2).toFixed(6));
-    user.balance      += half;
-    user.total_earned += half;
-    user.history.unshift({ amount: half, at: new Date().toISOString(), auto: true });
-    if (user.history.length > 100) user.history.pop();
-    delete db.pending_claims[user.username];
-    saveDB();
-    console.log(`[EXPIRE] ${user.username} → 50% : +${half} ARCH`);
-    return json(res, 200, { ok: true, reward: half, balance: user.balance });
+    const c = await query('SELECT * FROM pending_claims WHERE username = $1', [user.username]);
+    if (!c.rows.length) return json(res, 200, { ok: true, reward: 0 });
+    const half = parseFloat((c.rows[0].reward / 2).toFixed(6));
+    await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [half, user.username]);
+    await addHistory(user.username, half, 'expire_auto', true);
+    await query('DELETE FROM pending_claims WHERE username = $1', [user.username]);
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[EXPIRE] ${user.username} → +${half} ARCH`);
+    return json(res, 200, { ok: true, reward: half, balance: updated.rows[0].balance });
   }
+
+  // ME
   if (endpoint === '/api/me' && req.method === 'GET') {
-    const user = getUser(tk);
+    const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
-    const claim = db.pending_claims[user.username];
+    const claim = await query('SELECT * FROM pending_claims WHERE username = $1', [user.username]);
+    const hist  = await query('SELECT amount, reason, auto, created_at FROM history WHERE username = $1 ORDER BY id DESC LIMIT 20', [user.username]);
     return json(res, 200, {
       username:      user.username,
       balance:       user.balance,
       total_earned:  user.total_earned,
       scans:         user.scans,
       claims:        user.claims,
-      history:       user.history.slice(0, 20),
-      next_scan_in:  Math.max(0, Math.ceil(CONFIG.scanInterval - (Date.now() - user.last_scan) / 1000)),
-      pending_claim: claim ? { reward: claim.reward, expires_at: claim.expires_at } : null,
+      history:       hist.rows.map(h => ({ amount: h.amount, at: h.created_at, auto: h.auto, reason: h.reason })),
+      next_scan_in:  Math.max(0, Math.ceil(CONFIG.scanInterval - (Date.now() - Number(user.last_scan)) / 1000)),
+      pending_claim: claim.rows.length ? { reward: claim.rows[0].reward, expires_at: Number(claim.rows[0].expires_at) } : null,
     });
   }
 
   // LEADERBOARD
   if (endpoint === '/api/leaderboard' && req.method === 'GET') {
-    const board = Object.values(db.users)
-      .map(u => ({ username: u.username, balance: u.balance, scans: u.scans, claims: u.claims }))
-      .sort((a, b) => b.balance - a.balance)
-      .slice(0, 10);
-    return json(res, 200, { leaderboard: board });
+    const board = await query('SELECT username, balance, scans, claims FROM users ORDER BY balance DESC LIMIT 10');
+    return json(res, 200, { leaderboard: board.rows });
+  }
+
+  // TRANSFER (hub de jeux)
+  if (endpoint === '/api/transfer' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { to, from, amount, reason } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+    if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
+
+    if (to === '__house__') {
+      if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
+      await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [amt, user.username]);
+      await addHistory(user.username, -amt, reason || 'game');
+      const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+      console.log(`[TRANSFER] ${user.username} → house -${amt} (${reason})`);
+      return json(res, 200, { ok: true, balance: updated.rows[0].balance });
+    }
+
+    if (from === '__house__') {
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [amt, user.username]);
+      await addHistory(user.username, amt, reason || 'game_win');
+      const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+      console.log(`[TRANSFER] house → ${user.username} +${amt} (${reason})`);
+      return json(res, 200, { ok: true, balance: updated.rows[0].balance });
+    }
+
+    return json(res, 400, { error: 'Transfert non autorisé.' });
   }
 
   // ADMIN
   if (endpoint === '/api/admin/users' && req.method === 'GET') {
     if (url.searchParams.get('pass') !== CONFIG.adminPass)
       return json(res, 403, { error: 'Accès refusé.' });
-    const users = Object.values(db.users).map(u => ({
-      username: u.username, balance: u.balance,
-      total_earned: u.total_earned, scans: u.scans, claims: u.claims,
-    }));
-    return json(res, 200, { users });
-  }
-
-  // TRANSFER — utilisé par le hub de jeux pour débiter/créditer
-  // to: '__house__'  → débit joueur (mise)
-  // from: '__house__' → crédit joueur (gain)
-  if (endpoint === '/api/transfer' && req.method === 'POST') {
-    const user = getUser(tk);
-    if (!user) return json(res, 401, { error: 'Non connecté.' });
-
-    const { to, from, amount, reason } = await body(req);
-    const amt = parseFloat(parseFloat(amount).toFixed(6));
-
-    if (isNaN(amt) || amt <= 0)
-      return json(res, 400, { error: 'Montant invalide.' });
-
-    // Débit joueur → house (mise)
-    if (to === '__house__') {
-      if (user.balance < amt)
-        return json(res, 400, { error: 'Solde insuffisant.' });
-      user.balance = parseFloat((user.balance - amt).toFixed(6));
-      user.history.unshift({ amount: -amt, at: new Date().toISOString(), reason: reason || 'game' });
-      if (user.history.length > 100) user.history.pop();
-      saveDB();
-      console.log(`[TRANSFER] ${user.username} → house : -${amt} ARCH (${reason})`);
-      return json(res, 200, { ok: true, balance: user.balance });
-    }
-
-    // Crédit joueur ← house (gain)
-    if (from === '__house__') {
-      user.balance      = parseFloat((user.balance + amt).toFixed(6));
-      user.total_earned = parseFloat((user.total_earned + amt).toFixed(6));
-      user.history.unshift({ amount: amt, at: new Date().toISOString(), reason: reason || 'game_win' });
-      if (user.history.length > 100) user.history.pop();
-      saveDB();
-      console.log(`[TRANSFER] house → ${user.username} : +${amt} ARCH (${reason})`);
-      return json(res, 200, { ok: true, balance: user.balance });
-    }
-
-    return json(res, 400, { error: 'Transfert non autorisé.' });
+    const users = await query('SELECT username, balance, total_earned, scans, claims FROM users ORDER BY balance DESC');
+    return json(res, 200, { users: users.rows });
   }
 
   return json(res, 404, { error: 'Route inconnue.' });
@@ -344,15 +323,18 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(CONFIG.port, () => {
-  console.log('');
-  console.log('╔══════════════════════════════════════════════╗');
-  console.log('║   ARCH                                       ║');
-  console.log(`║   http://localhost:${CONFIG.port}                     ║`);
-  console.log('╚══════════════════════════════════════════════╝');
-  console.log('');
-  console.log('  Scan cycle  : ' + CONFIG.scanInterval + 's');
-  console.log('  Scan anim   : ' + CONFIG.scanDuration + 's');
-  console.log('  Claim window: ' + CONFIG.claimWindow + 's');
-  console.log('');
+// ============================================================
+//  DÉMARRAGE
+// ============================================================
+initDB().then(() => {
+  server.listen(CONFIG.port, () => {
+    console.log('');
+    console.log('╔══════════════════════════════════════════════╗');
+    console.log('║   ARCH — PostgreSQL                          ║');
+    console.log(`║   http://localhost:${CONFIG.port}                     ║`);
+    console.log('╚══════════════════════════════════════════════╝');
+  });
+}).catch(err => {
+  console.error('[FATAL] PostgreSQL connexion échouée :', err.message);
+  process.exit(1);
 });
