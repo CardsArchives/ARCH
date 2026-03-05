@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARCH</title>
+<style>
+/* ── RESET & ROOT ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --g0: #000000;
+  --g1: #001a00;
+  --g2: #003300;
+  --green: #00ff41;
+  --green2: #00cc33;
+  --green3: #008f11;
+  --green4: #003b00;
+  --dim: #00ff4133;
+  --text: #00ff41;
+  --text-dim: #00802044;
+  --red: #ff003c;
+  --gold: #ffe066;
+  --white: #e0ffe0;
+  --font: 'Courier New', Courier, monospace;
+}
+
+html, body {
+  height: 100%;
+  background: #000;
+  color: var(--green);
+  font-family: var(--font);
+  overflow-x: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px 16px 40px;
+  position: relative;
+}
+
+/* ── MATRIX RAIN CANVAS ── */
+#matrixCanvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+/* Everything above the canvas */
+.layer { position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; align-items: center; }
+
+/* ── HEADER ── */
+.header { text-align: center; margin-bottom: 28px; }
+
+.arch-logo {
+  font-size: clamp(2.8rem, 8vw, 5rem);
+  font-weight: 900;
+  letter-spacing: 14px;
+  color: var(--green);
+  text-shadow:
+    0 0 10px var(--green),
+    0 0 30px var(--green),
+    0 0 80px #00ff4155;
+  animation: logoPulse 4s ease-in-out infinite;
+  line-height: 1;
+}
+
+@keyframes logoPulse {
+  0%,100% { text-shadow: 0 0 10px var(--green), 0 0 30px var(--green), 0 0 80px #00ff4155; }
+  50%      { text-shadow: 0 0 6px var(--green),  0 0 18px var(--green), 0 0 40px #00ff4122; }
+}
+
+.header-line {
+  width: 100%;
+  max-width: 480px;
+  border: none;
+  border-top: 1px solid var(--green3);
+  margin: 14px auto 0;
+  opacity: 0.4;
+}
+
+/* ── SCANLINE OVERLAY ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px, transparent 2px,
+    rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── AUTH BOX ── */
+.auth-wrap {
+  width: min(380px, 94vw);
+  border: 1px solid var(--green3);
+  background: rgba(0,10,0,0.92);
+  padding: 28px 30px;
+  box-shadow: 0 0 30px #00ff4111, inset 0 0 20px #00100000;
+  position: relative;
+}
+
+.auth-wrap::before {
+  content: '> IDENTIFICATION REQUISE_';
+  display: block;
+  font-size: 0.62rem;
+  color: var(--green3);
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+  animation: blink 1.2s step-end infinite;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.auth-tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid var(--green4); }
+.tab-btn {
+  flex: 1; background: transparent; border: none;
+  color: var(--green3); font-family: var(--font); font-size: 0.72rem;
+  letter-spacing: 2px; padding: 8px; cursor: pointer;
+  text-transform: uppercase; border-bottom: 1px solid transparent;
+  margin-bottom: -1px; transition: all 0.2s;
+}
+.tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+
+.field-lbl { font-size: 0.58rem; color: var(--green3); letter-spacing: 3px; margin-bottom: 5px; }
+
+input[type=text], input[type=password] {
+  width: 100%; background: #000;
+  border: 1px solid var(--green4);
+  padding: 9px 12px; font-family: var(--font);
+  font-size: 0.9rem; color: var(--green);
+  outline: none; margin-bottom: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  caret-color: var(--green);
+}
+input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
+
+.btn {
+  width: 100%; background: transparent;
+  border: 1px solid var(--green); color: var(--green);
+  font-family: var(--font); font-size: 0.72rem;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 11px 20px; cursor: pointer;
+  transition: all 0.2s; margin-top: 4px;
+}
+.btn:hover { background: var(--dim); box-shadow: 0 0 16px var(--dim); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: #ff003c22; box-shadow: 0 0 16px #ff003c22; }
+
+.btn-claim { border-color: var(--green); color: var(--green); font-size: 0.9rem; padding: 14px; box-shadow: 0 0 12px var(--dim); }
+.btn-claim:hover { background: var(--dim); box-shadow: 0 0 24px #00ff4166; }
+
+.err-msg { font-size: 0.68rem; color: var(--red); text-align: center; min-height: 14px; margin-bottom: 4px; }
+
+/* ── GAME UI ── */
+#gameUI { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 740px; }
+
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%; margin-bottom: 14px;
+  font-size: 0.62rem; color: var(--green3); letter-spacing: 2px;
+}
+.topbar .user-tag { color: var(--green); }
+.btn-xs {
+  background: transparent; border: 1px solid var(--green4);
+  color: var(--green3); font-family: var(--font); font-size: 0.58rem;
+  letter-spacing: 1px; padding: 3px 10px; cursor: pointer; transition: all 0.2s;
+}
+.btn-xs:hover { border-color: var(--red); color: var(--red); }
+
+/* GRID */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+
+.panel {
+  background: rgba(0,8,0,0.9);
+  border: 1px solid var(--green4);
+  padding: 16px 18px;
+  position: relative;
+}
+.panel::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--green3), transparent);
+  opacity: 0.5;
+}
+
+.panel-lbl {
+  font-size: 0.55rem; color: var(--green3);
+  letter-spacing: 4px; text-transform: uppercase; margin-bottom: 10px;
+}
+
+/* BALANCE */
+.balance-panel { grid-column: 1 / -1; }
+.balance-inner { display: flex; justify-content: space-between; align-items: flex-end; }
+.balance-num {
+  font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 900;
+  color: var(--green); letter-spacing: 2px;
+  text-shadow: 0 0 20px var(--dim);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.balance-unit { font-size: 0.75rem; color: var(--green3); letter-spacing: 4px; padding-bottom: 4px; }
+.balance-total { font-size: 0.62rem; color: var(--green4); letter-spacing: 2px; margin-top: 6px; }
+
+/* ── SLOT MACHINE ── */
+.slot-panel { grid-column: 1 / -1; text-align: center; }
+
+.slot-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  margin: 10px 0;
+  font-size: clamp(2rem, 7vw, 3.8rem);
+  font-weight: 900;
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  overflow: hidden;
+  height: 1.2em;
+  position: relative;
+}
+
+.slot-digit {
+  display: inline-block;
+  width: 0.62em;
+  text-align: center;
+  color: var(--green);
+  text-shadow: 0 0 12px var(--green);
+  transition: color 0.1s;
+  position: relative;
+}
+
+.slot-digit.spinning {
+  animation: spinDigit 0.08s steps(1) infinite;
+}
+
+.slot-digit.locked {
+  color: var(--white);
+  text-shadow: 0 0 20px #fff, 0 0 40px var(--green);
+  animation: none;
+}
+
+.slot-digit.sep {
+  width: 0.3em;
+  color: var(--green3);
+  text-shadow: none;
+  animation: none !important;
+}
+
+@keyframes spinDigit {
+  0%   { content: '0'; }
+  10%  { opacity: 0.7; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.8; }
+}
+
+/* Jackpot flash */
+.slot-wrap.jackpot .slot-digit.locked {
+  color: var(--gold);
+  text-shadow: 0 0 20px var(--gold), 0 0 40px #ffe06688;
+  animation: jackpotFlash 0.4s ease-in-out infinite alternate;
+}
+@keyframes jackpotFlash {
+  from { text-shadow: 0 0 10px var(--gold); }
+  to   { text-shadow: 0 0 30px var(--gold), 0 0 60px #ffe06666; }
+}
+
+/* Progress bar */
+.prog-wrap {
+  width: 100%; background: #000;
+  border: 1px solid var(--green4); height: 6px; margin: 10px 0;
+  position: relative; overflow: hidden;
+}
+.prog-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green4), var(--green));
+  box-shadow: 0 0 8px var(--green);
+  transition: width 1s linear;
+  width: 0%;
+}
+.prog-bar.claim-mode {
+  background: linear-gradient(90deg, #ffe06666, var(--gold));
+  box-shadow: 0 0 8px var(--gold);
+  animation: claimPulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes claimPulse { from { opacity: 0.7; } to { opacity: 1; } }
+
+.scan-status {
+  font-size: 0.62rem; color: var(--green3); letter-spacing: 3px;
+  margin-bottom: 6px; height: 14px;
+}
+
+.claim-btn-wrap { margin-top: 10px; }
+
+/* STATS */
+.stat-row {
+  display: flex; justify-content: space-between;
+  padding: 4px 0; border-bottom: 1px solid var(--green4);
+  font-size: 0.68rem;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-lbl { color: var(--green3); }
+.stat-val { color: var(--green); letter-spacing: 1px; }
+
+/* LOG */
+.log-panel { grid-column: 1 / -1; }
+.log-inner {
+  height: 88px; overflow-y: auto; font-size: 0.65rem;
+  line-height: 1.85; color: var(--green3);
+  scrollbar-width: thin; scrollbar-color: var(--green4) transparent;
+}
+.log-line { padding: 0; }
+.log-line.earn  { color: var(--green2); }
+.log-line.big   { color: var(--gold); }
+.log-line.miss  { color: var(--green4); }
+.log-line.sys   { color: #004400; }
+
+/* LEADERBOARD */
+.lb-panel { grid-column: 1 / -1; }
+.lb-row {
+  display: flex; align-items: center;
+  padding: 4px 0; border-bottom: 1px solid var(--green4);
+  font-size: 0.68rem;
+}
+.lb-row:last-child { border-bottom: none; }
+.lb-rank { width: 22px; color: var(--green4); }
+.lb-name { flex: 1; color: var(--green2); }
+.lb-scans { color: var(--green4); font-size: 0.58rem; margin-right: 10px; }
+.lb-bal  { color: var(--green); font-weight: bold; letter-spacing: 1px; }
+
+/* BURST */
+.burst {
+  position: fixed; pointer-events: none; z-index: 50;
+  font-family: var(--font); font-size: 0.95rem; font-weight: 900;
+  animation: burstAnim 1.8s ease forwards;
+}
+.burst.normal { color: var(--green); text-shadow: 0 0 8px var(--green); }
+.burst.big    { color: var(--gold);  text-shadow: 0 0 16px var(--gold); font-size: 1.3rem; }
+
+@keyframes burstAnim {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-80px) scale(1.3); }
+}
+
+/* Matrix glitch on big win */
+.glitch {
+  animation: glitchAnim 0.15s steps(1) 6;
+}
+@keyframes glitchAnim {
+  0%   { filter: hue-rotate(0deg)   brightness(1); }
+  33%  { filter: hue-rotate(120deg) brightness(2); }
+  66%  { filter: hue-rotate(240deg) brightness(1.5); }
+  100% { filter: hue-rotate(0deg)   brightness(1); }
+}
+
+@media (max-width: 500px) {
+  .grid { grid-template-columns: 1fr; }
+  .balance-panel, .slot-panel, .log-panel, .lb-panel { grid-column: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- Matrix rain -->
+<canvas id="matrixCanvas"></canvas>
+
+<div class="layer">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="arch-logo">ARCH</div>
+    <hr class="header-line">
+  </div>
+
+  <!-- AUTH -->
+  <div class="auth-wrap" id="authBox">
+    <div class="auth-tabs">
+      <button class="tab-btn active" onclick="switchTab('login')">Login</button>
+      <button class="tab-btn" onclick="switchTab('register')">Register</button>
+    </div>
+    <div class="field-lbl">IDENTIFIANT</div>
+    <input type="text" id="authUser" placeholder="username" autocomplete="off" />
+    <div class="field-lbl">MOT DE PASSE</div>
+    <input type="password" id="authPass" placeholder="••••••••" />
+    <div class="err-msg" id="authErr"></div>
+    <button class="btn" id="authBtn" onclick="doAuth()">[ ACCÉDER AU RÉSEAU ]</button>
+  </div>
+
+  <!-- GAME -->
+  <div id="gameUI">
+    <div class="topbar">
+      <div>NODE : <span class="user-tag" id="topUser">—</span></div>
+      <button class="btn-xs" onclick="logout()">DÉCONNEXION</button>
+    </div>
+
+    <div class="grid">
+
+      <!-- Balance -->
+      <div class="panel balance-panel">
+        <div class="panel-lbl">◈ solde</div>
+        <div class="balance-inner">
+          <div>
+            <div class="balance-num" id="balanceNum">0.000000</div>
+            <div class="balance-total" id="balanceTotal">TOTAL MINÉ : 0.000000</div>
+          </div>
+          <div class="balance-unit">ARCH</div>
+        </div>
+      </div>
+
+      <!-- Slot machine -->
+      <div class="panel slot-panel">
+        <div class="panel-lbl">◈ scan du bloc</div>
+        <div class="scan-status" id="scanStatus">EN ATTENTE DU PROCHAIN CYCLE...</div>
+
+        <!-- Les digits sont générés en JS -->
+        <div class="slot-wrap" id="slotWrap">
+          <span class="slot-digit" id="d0">0</span>
+          <span class="slot-digit sep">.</span>
+          <span class="slot-digit" id="d1">0</span>
+          <span class="slot-digit" id="d2">0</span>
+          <span class="slot-digit" id="d3">0</span>
+          <span class="slot-digit" id="d4">0</span>
+          <span class="slot-digit" id="d5">0</span>
+          <span class="slot-digit" id="d6">0</span>
+        </div>
+
+        <div class="prog-wrap">
+          <div class="prog-bar" id="progBar"></div>
+        </div>
+
+        <div class="claim-btn-wrap" id="claimBtnWrap" style="display:none">
+          <button class="btn btn-claim" id="claimBtn" onclick="doClaim()">
+            ▶ CLAIM +<span id="claimAmount">0.000000</span> ARCH
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="panel">
+        <div class="panel-lbl">◈ statistiques</div>
+        <div class="stat-row"><span class="stat-lbl">Scans</span><span class="stat-val" id="sScans">0</span></div>
+        <div class="stat-row"><span class="stat-lbl">Claims</span><span class="stat-val" id="sClaims">0</span></div>
+        <div class="stat-row"><span class="stat-lbl">Total miné</span><span class="stat-val" id="sEarned">0.000000</span></div>
+        <div class="stat-row"><span class="stat-lbl">Prochain scan</span><span class="stat-val" id="sNext">—</span></div>
+      </div>
+
+      <!-- Log -->
+      <div class="panel log-panel">
+        <div class="panel-lbl">◈ terminal</div>
+        <div class="log-inner" id="logBox"></div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div class="panel lb-panel">
+        <div class="panel-lbl">◈ classement</div>
+        <div id="lbList"><span style="color:var(--green4);font-size:.65rem">Chargement...</span></div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /layer -->
+
+<script>
+// ═══════════════════════════════════════════
+//  MATRIX RAIN
+// ═══════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('matrixCanvas');
+  const ctx = canvas.getContext('2d');
+  const chars = 'ARCH0123456789アイウエオカキクケコサシスセソタチツテトナニヌネノ01';
+  let cols, drops;
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols  = Math.floor(canvas.width / 16);
+    drops = Array(cols).fill(1);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+
+  setInterval(() => {
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '14px Courier New';
+    for (let i = 0; i < cols; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const x  = i * 16;
+      const y  = drops[i] * 16;
+      // Head = bright, trail = dim
+      ctx.fillStyle = drops[i] * 16 > canvas.height * 0.8 ? '#00ff4188' : '#00ff41cc';
+      if (Math.random() < 0.05) ctx.fillStyle = '#ffffff';
+      ctx.fillText(ch, x, y);
+      if (y > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 45);
+})();
+
+// ═══════════════════════════════════════════
+//  APP
+// ═══════════════════════════════════════════
+const SERVER = '';
+const SCAN_INTERVAL = 60;
+
+let token    = localStorage.getItem('arch_token') || null;
+let username = localStorage.getItem('arch_user')  || null;
+
+let scanTimer    = SCAN_INTERVAL;
+let mainInterval = null;
+let currentTab   = 'login';
+
+// Slot state
+let slotActive    = false;
+let slotReward    = 0;
+let slotDigits    = [0,0,0,0,0,0,0]; // d0.d1d2d3d4d5d6
+let lockTimers    = [];
+let spinIntervals = [];
+let claimActive   = false;
+let claimTimer    = null;
+let claimEnd      = 0;
+
+// ── AUTH ──────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+    b.classList.toggle('active', i === (tab==='login'?0:1)));
+  document.getElementById('authBtn').textContent =
+    tab === 'login' ? '[ ACCÉDER AU RÉSEAU ]' : '[ CRÉER UN NŒUD ]';
+  document.getElementById('authErr').textContent = '';
+}
+
+async function doAuth() {
+  const user = document.getElementById('authUser').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const err  = document.getElementById('authErr');
+  err.textContent = '';
+  if (!user || !pass) { err.textContent = 'Champs requis.'; return; }
+  try {
+    const ep = currentTab === 'login' ? '/api/login' : '/api/register';
+    const r  = await fetch(SERVER + ep, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Erreur.'; return; }
+    if (currentTab === 'register') {
+      err.style.color = 'var(--green)';
+      err.textContent = '> Nœud créé. Connecte-toi.';
+      switchTab('login'); return;
+    }
+    token    = d.token; username = d.username;
+    localStorage.setItem('arch_token', token);
+    localStorage.setItem('arch_user',  username);
+    startGame();
+  } catch(e) { err.textContent = 'Serveur inaccessible.'; }
+}
+
+function logout() {
+  localStorage.removeItem('arch_token');
+  localStorage.removeItem('arch_user');
+  token = null; username = null;
+  clearInterval(mainInterval);
+  document.getElementById('gameUI').style.display = 'none';
+  document.getElementById('authBox').style.display = '';
+}
+
+// ── GAME ──────────────────────────────────
+async function startGame() {
+  document.getElementById('authBox').style.display = 'none';
+  document.getElementById('gameUI').style.display  = 'flex';
+  document.getElementById('topUser').textContent   = username;
+  log('> CONNEXION AU RÉSEAU ARCH...', 'sys');
+  log('> NŒUD ' + username.toUpperCase() + ' ACTIVÉ.', 'sys');
+
+  await refreshMe();
+  await refreshLB();
+
+  mainInterval = setInterval(async () => {
+    if (slotActive || claimActive) return;
+    scanTimer--;
+    updateCountdown(scanTimer);
+    if (scanTimer <= 0) {
+      scanTimer = SCAN_INTERVAL;
+      await doScan();
+    }
+  }, 1000);
+
+  setInterval(refreshLB, 25000);
+}
+
+async function refreshMe() {
+  try {
+    const r = await fetch(SERVER + '/api/me', { headers: { Authorization: 'Bearer ' + token } });
+    if (r.status === 401) { logout(); return; }
+    const d = await r.json();
+    setBalance(d.balance, d.total_earned);
+    setStats(d.scans, d.claims, d.total_earned);
+    if (d.next_scan_in > 0) { scanTimer = d.next_scan_in; updateCountdown(scanTimer); }
+    // Claim en attente ?
+    if (d.pending_claim && !claimActive && !slotActive) {
+      const remaining = Math.ceil((d.pending_claim.expires_at - Date.now()) / 1000);
+      if (remaining > 0) {
+        showClaimWindow(d.pending_claim.reward, remaining);
+      }
+    }
+  } catch(e) {}
+}
+
+function setBalance(bal, total) {
+  document.getElementById('balanceNum').textContent   = bal.toFixed(6);
+  document.getElementById('balanceTotal').textContent = 'TOTAL MINÉ : ' + total.toFixed(6);
+}
+
+function setStats(scans, claims, earned) {
+  document.getElementById('sScans').textContent  = scans;
+  document.getElementById('sClaims').textContent = claims;
+  document.getElementById('sEarned').textContent = earned.toFixed(6);
+}
+
+function updateCountdown(t) {
+  document.getElementById('sNext').textContent = t + 's';
+  document.getElementById('progBar').style.width = ((SCAN_INTERVAL - t) / SCAN_INTERVAL * 100) + '%';
+}
+
+// ── SCAN ──────────────────────────────────
+async function doScan() {
+  log('> SCAN DU BLOC EN COURS...', 'sys');
+  try {
+    const r = await fetch(SERVER + '/api/scan', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+    const d = await r.json();
+    if (r.status === 429) { log('> ' + d.error, 'miss'); scanTimer = d.wait || SCAN_INTERVAL; return; }
+    if (!r.ok) { log('> ' + (d.error||'Erreur'), 'miss'); return; }
+    startSlotAnimation(d.reward, d.scan_duration, d.claim_window);
+  } catch(e) { log('> ERREUR RÉSEAU', 'miss'); }
+}
+
+// ── SLOT ANIMATION ────────────────────────
+// reward ex: 0.003847 → digits [0,0,0,3,8,4,7]
+function rewardToDigits(reward) {
+  const s = reward.toFixed(6); // "0.003847"
+  const parts = s.split('.');
+  const intPart = parseInt(parts[0]);       // 0–9
+  const decStr  = parts[1].padStart(6,'0'); // "003847"
+  return [intPart, ...decStr.split('').map(Number)];
+}
+
+function startSlotAnimation(reward, scanDuration, claimWindow) {
+  slotActive = true;
+  slotReward = reward;
+  const digits = rewardToDigits(reward);
+  const wrap   = document.getElementById('slotWrap');
+  const progBar = document.getElementById('progBar');
+  const status  = document.getElementById('scanStatus');
+
+  // Detect jackpot (>= 1 ARCH)
+  const isJackpot = reward >= 1.0;
+  const isBig     = reward >= 0.1;
+
+  wrap.classList.remove('jackpot');
+
+  // Start spinning all digits including integer
+  const ids = ['d0','d1','d2','d3','d4','d5','d6'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('locked');
+    el.classList.add('spinning');
+    el.textContent = Math.floor(Math.random() * 10); // commence pas à 0
+  });
+
+  status.textContent = 'SCAN EN COURS...';
+  progBar.className  = 'prog-bar';
+  progBar.style.transition = 'width ' + scanDuration + 's linear';
+  progBar.style.width = '100%';
+
+  // Spin each digit visually
+  spinIntervals.forEach(clearInterval);
+  spinIntervals = ids.map(id => {
+    const el = document.getElementById(id);
+    return setInterval(() => {
+      if (el.classList.contains('spinning'))
+        el.textContent = Math.floor(Math.random() * 10);
+    }, 60);
+  });
+
+  // Lock digits one by one during the last part of scanDuration
+  // First digit locks at 60% of scanDuration, last at 95%
+  lockTimers.forEach(clearTimeout);
+  lockTimers = [];
+
+  const lockStart = scanDuration * 0.55 * 1000;
+  const lockEnd   = scanDuration * 0.95 * 1000;
+  const spacing   = (lockEnd - lockStart) / (ids.length - 1);
+
+  // Lock left-to-right mais on veut que le "0." se fige en premier
+  // et le dernier chiffre décimal en dernier → ordre naturel est bon,
+  // MAIS on mappe : index 0 (entier) lock en premier, index 6 (millionième) en dernier
+  // Lock de droite à gauche : d6 (millionième) en premier, d0 (entier) en dernier
+  const idsReversed = [...ids].reverse();
+  idsReversed.forEach((id, i) => {
+    const idxInOriginal = ids.indexOf(id);
+    const delay = lockStart + i * spacing;
+    lockTimers.push(setTimeout(() => {
+      const el = document.getElementById(id);
+      clearInterval(spinIntervals[idxInOriginal]);
+      el.textContent = digits[idxInOriginal];
+      el.classList.remove('spinning');
+      el.classList.add('locked');
+
+      // Dernier à locker = d0 (index 0 dans ids) = le chiffre entier
+      if (id === 'd0') {
+        setTimeout(() => {
+          if (isJackpot) wrap.classList.add('jackpot');
+          slotActive = false;
+          status.textContent = isJackpot ? '⚡ JACKPOT DÉTECTÉ !' : isBig ? '◈ SIGNAL FORT !' : '◈ BLOC ANALYSÉ';
+          showClaimWindow(reward, claimWindow);
+          if (isJackpot || isBig) triggerGlitch();
+        }, 300);
+      }
+    }, delay));
+  });
+}
+
+// ── CLAIM WINDOW ──────────────────────────
+function showClaimWindow(reward, windowSec) {
+  claimActive = true;
+  const progBar = document.getElementById('progBar');
+  const wrap    = document.getElementById('claimBtnWrap');
+  const btn     = document.getElementById('claimBtn');
+  const amount  = document.getElementById('claimAmount');
+  const status  = document.getElementById('scanStatus');
+
+  amount.textContent = reward.toFixed(6);
+  wrap.style.display = '';
+  btn.disabled       = false;
+  progBar.className  = 'prog-bar claim-mode';
+  claimEnd = Date.now() + windowSec * 1000;
+
+  // Countdown on button
+  clearInterval(claimTimer);
+  claimTimer = setInterval(() => {
+    const left = Math.ceil((claimEnd - Date.now()) / 1000);
+    if (left <= 0) {
+      clearInterval(claimTimer);
+      cancelClaim();
+    } else {
+      btn.textContent = '';
+      btn.textContent = `▶ CLAIM +${reward.toFixed(6)} ARCH [${left}s]`;
+      progBar.style.width = (left / windowSec * 100) + '%';
+    }
+  }, 250);
+}
+
+function cancelClaim() {
+  claimActive = false;
+  document.getElementById('claimBtnWrap').style.display = 'none';
+  document.getElementById('progBar').className  = 'prog-bar';
+  document.getElementById('progBar').style.width = '0%';
+  document.getElementById('scanStatus').textContent = 'EN ATTENTE DU PROCHAIN CYCLE...';
+  document.getElementById('slotWrap').classList.remove('jackpot');
+  // Appelle expire pour récupérer 50%
+  fetch(SERVER + '/api/expire', { method: 'POST', headers: { Authorization: 'Bearer ' + token } })
+    .then(r => r.json()).then(d => {
+      if (d.reward) {
+        log('> CLAIM EXPIRÉ — 50% crédité : +' + d.reward.toFixed(6) + ' ARCH', 'miss');
+        spawnBurst('+' + d.reward.toFixed(6) + ' ARCH', false);
+        refreshMe();
+      } else {
+        log('> CLAIM EXPIRÉ.', 'miss');
+      }
+    }).catch(() => {});
+  scanTimer = 0;
+}
+
+async function doClaim() {
+  clearInterval(claimTimer);
+  document.getElementById('claimBtn').disabled = true;
+  try {
+    const r = await fetch(SERVER + '/api/claim', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+    const d = await r.json();
+    if (!r.ok) { log('> ' + (d.error||'Erreur claim'), 'miss'); cancelClaim(); return; }
+
+    // Success
+    claimActive = false;
+    document.getElementById('claimBtnWrap').style.display = 'none';
+    document.getElementById('progBar').className  = 'prog-bar';
+    document.getElementById('progBar').style.width = '0%';
+    document.getElementById('scanStatus').textContent = 'EN ATTENTE DU PROCHAIN CYCLE...';
+    document.getElementById('slotWrap').classList.remove('jackpot');
+
+    setBalance(d.balance, d.balance); // approximation, refreshMe corrigera
+    setStats(null, null, null); // refreshMe will fix
+
+    const isBig = d.reward >= 0.1;
+    spawnBurst('+' + d.reward.toFixed(6) + ' ARCH', isBig);
+    log('> CLAIM VALIDÉ : +' + d.reward.toFixed(6) + ' ARCH', isBig ? 'big' : 'earn');
+
+    await refreshMe();
+    await refreshLB();
+    scanTimer = 0; // redémarre immédiatement
+  } catch(e) { log('> ERREUR RÉSEAU', 'miss'); cancelClaim(); }
+}
+
+// ── LEADERBOARD ───────────────────────────
+async function refreshLB() {
+  try {
+    const r = await fetch(SERVER + '/api/leaderboard');
+    const d = await r.json();
+    const medals = ['#1','#2','#3'];
+    const html = d.leaderboard.map((u,i) =>
+      `<div class="lb-row">
+        <span class="lb-rank">${medals[i]||'#'+(i+1)}</span>
+        <span class="lb-name">${u.username}</span>
+        <span class="lb-scans">${u.scans} scans</span>
+        <span class="lb-bal">${u.balance.toFixed(4)}</span>
+      </div>`
+    ).join('');
+    document.getElementById('lbList').innerHTML = html ||
+      '<span style="color:var(--green4);font-size:.65rem">Aucun mineur</span>';
+  } catch(e) {}
+}
+
+// ── UTILS ─────────────────────────────────
+function log(msg, type='sys') {
+  const box  = document.getElementById('logBox');
+  if (!box) return;
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  const ts = new Date().toTimeString().slice(0,8);
+  line.textContent = `[${ts}] ${msg}`;
+  box.prepend(line);
+  while (box.children.length > 80) box.removeChild(box.lastChild);
+}
+
+function spawnBurst(text, big=false) {
+  const el = document.createElement('div');
+  el.className = 'burst ' + (big ? 'big' : 'normal');
+  el.textContent = text;
+  el.style.left = (25 + Math.random() * 50) + '%';
+  el.style.top  = '30%';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+function triggerGlitch() {
+  document.body.classList.add('glitch');
+  setTimeout(() => document.body.classList.remove('glitch'), 900);
+}
+
+// ── EVENTS ────────────────────────────────
+document.getElementById('authPass').addEventListener('keydown', e => { if(e.key==='Enter') doAuth(); });
+document.getElementById('authUser').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('authPass').focus(); });
+
+// Auto-login
+if (token && username) startGame();
+</script>
+</body>
+</html>
