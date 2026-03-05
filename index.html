@@ -442,7 +442,7 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
           <div class="prog-bar" id="progBar"></div>
         </div>
 
-        <div class="claim-btn-wrap" id="claimBtnWrap" style="display:none">
+        <div class="claim-btn-wrap" id="claimBtnWrap" style="display:flex">
           <button class="btn btn-claim" id="claimBtn" onclick="doClaim()">
             ▶ CLAIM +<span id="claimAmount">0.000000</span> ARCH
           </button>
@@ -747,7 +747,7 @@ function showClaimWindow(reward, windowSec) {
   const status  = document.getElementById('scanStatus');
 
   amount.textContent = reward.toFixed(6);
-  wrap.style.display = '';
+  wrap.style.display = 'flex';
   btn.disabled       = false;
   progBar.className  = 'prog-bar claim-mode';
   claimEnd = Date.now() + windowSec * 1000;
