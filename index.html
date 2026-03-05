@@ -246,8 +246,8 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 }
 
 .slot-digit.locked {
-  color: var(--white);
-  text-shadow: 0 0 20px #fff, 0 0 40px var(--green);
+  color: var(--green);
+  text-shadow: 0 0 12px var(--green);
   animation: none;
 }
 
@@ -798,14 +798,14 @@ async function doClaim() {
 
     // Success
     claimActive = false;
+    slotActive = false;
     document.getElementById('claimBtnWrap').style.display = 'none';
     document.getElementById('progBar').className  = 'prog-bar';
     document.getElementById('progBar').style.width = '0%';
     document.getElementById('scanStatus').textContent = 'EN ATTENTE DU PROCHAIN CYCLE...';
     document.getElementById('slotWrap').classList.remove('jackpot');
 
-    setBalance(d.balance, d.balance); // approximation, refreshMe corrigera
-    setStats(null, null, null); // refreshMe will fix
+    setBalance(d.balance, d.balance);
 
     const isBig = d.reward >= 0.1;
     spawnBurst('+' + d.reward.toFixed(6) + ' ARCH', isBig);
@@ -813,7 +813,7 @@ async function doClaim() {
 
     await refreshMe();
     await refreshLB();
-    scanTimer = 0; // redémarre immédiatement
+    scanTimer = 0;
   } catch(e) { log('> ERREUR RÉSEAU', 'miss'); cancelClaim(); }
 }
 
