@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARCH · GAME HUB</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --g0: #000000;
+  --g1: #001a00;
+  --g2: #003300;
+  --green: #00ff41;
+  --green2: #00cc33;
+  --green3: #008f11;
+  --green4: #003b00;
+  --dim: #00ff4133;
+  --text: #00ff41;
+  --text-dim: #00802044;
+  --red: #ff003c;
+  --gold: #ffe066;
+  --white: #e0ffe0;
+  --font: 'Courier New', Courier, monospace;
+}
+
+html, body { height: 100%; background: #000; color: var(--green); font-family: var(--font); overflow-x: hidden; }
+
+body {
+  display: flex; flex-direction: column; align-items: center;
+  min-height: 100vh; padding: 20px 16px 60px; position: relative;
+}
+
+#matrixCanvas {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 0; opacity: 0.13; pointer-events: none;
+}
+
+body::after {
+  content: ''; position: fixed; inset: 0;
+  background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px);
+  pointer-events: none; z-index: 2;
+}
+
+.layer { position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; align-items: center; }
+
+/* HEADER */
+.header { text-align: center; margin-bottom: 24px; }
+.arch-logo {
+  font-size: clamp(2.4rem, 7vw, 4rem); font-weight: 900; letter-spacing: 14px; color: var(--green);
+  text-shadow: 0 0 10px var(--green), 0 0 30px var(--green), 0 0 80px #00ff4155;
+  animation: logoPulse 4s ease-in-out infinite;
+}
+.hub-sub { font-size: 0.58rem; letter-spacing: 6px; color: var(--green3); margin-top: 4px; }
+@keyframes logoPulse {
+  0%,100% { text-shadow: 0 0 10px var(--green), 0 0 30px var(--green), 0 0 80px #00ff4155; }
+  50%      { text-shadow: 0 0 6px var(--green), 0 0 18px var(--green), 0 0 40px #00ff4122; }
+}
+.header-line { width: 100%; max-width: 560px; border: none; border-top: 1px solid var(--green3); margin: 12px auto 0; opacity: 0.4; }
+
+/* AUTH */
+.auth-wrap {
+  width: min(360px, 94vw); border: 1px solid var(--green3);
+  background: rgba(0,10,0,0.92); padding: 28px 30px;
+  box-shadow: 0 0 30px #00ff4111;
+}
+.auth-wrap::before {
+  content: '> IDENTIFICATION REQUISE_'; display: block;
+  font-size: 0.62rem; color: var(--green3); letter-spacing: 2px;
+  margin-bottom: 20px; animation: blink 1.2s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.field-lbl { font-size: 0.58rem; color: var(--green3); letter-spacing: 3px; margin-bottom: 5px; }
+input[type=text], input[type=password] {
+  width: 100%; background: #000; border: 1px solid var(--green4);
+  padding: 9px 12px; font-family: var(--font); font-size: 0.9rem;
+  color: var(--green); outline: none; margin-bottom: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s; caret-color: var(--green);
+}
+input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
+
+.btn {
+  width: 100%; background: transparent; border: 1px solid var(--green);
+  color: var(--green); font-family: var(--font); font-size: 0.72rem;
+  letter-spacing: 3px; text-transform: uppercase; padding: 11px 20px;
+  cursor: pointer; transition: all 0.2s; margin-top: 4px;
+}
+.btn:hover { background: var(--dim); box-shadow: 0 0 16px var(--dim); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-sm {
+  background: transparent; border: 1px solid var(--green4); color: var(--green3);
+  font-family: var(--font); font-size: 0.6rem; letter-spacing: 2px;
+  padding: 5px 14px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+}
+.btn-sm:hover { border-color: var(--green); color: var(--green); }
+.err-msg { font-size: 0.68rem; color: var(--red); text-align: center; min-height: 14px; margin-bottom: 4px; }
+
+/* MAIN UI */
+#hubUI { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 760px; }
+
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%; margin-bottom: 16px; font-size: 0.62rem; color: var(--green3); letter-spacing: 2px;
+}
+.user-tag { color: var(--green); }
+.btn-xs {
+  background: transparent; border: 1px solid var(--green4); color: var(--green3);
+  font-family: var(--font); font-size: 0.58rem; letter-spacing: 1px;
+  padding: 3px 10px; cursor: pointer; transition: all 0.2s;
+}
+.btn-xs:hover { border-color: var(--red); color: var(--red); }
+
+/* WALLET BAR */
+.wallet-bar {
+  width: 100%; border: 1px solid var(--green3); background: rgba(0,8,0,0.9);
+  padding: 14px 20px; margin-bottom: 20px; display: flex;
+  justify-content: space-between; align-items: center;
+  box-shadow: 0 0 20px #00ff4108;
+}
+.wallet-bar::before {
+  display: none;
+}
+.w-label { font-size: 0.55rem; color: var(--green3); letter-spacing: 4px; margin-bottom: 4px; }
+.w-balance { font-size: clamp(1.6rem, 5vw, 2.6rem); font-weight: 900; color: var(--green); text-shadow: 0 0 16px var(--dim); }
+.w-unit { font-size: 0.7rem; color: var(--green3); letter-spacing: 3px; margin-left: 6px; }
+.w-link { font-size: 0.58rem; color: var(--green3); letter-spacing: 2px; text-decoration: none; border: 1px solid var(--green4); padding: 6px 12px; }
+.w-link:hover { border-color: var(--green); color: var(--green); }
+
+/* GAMES GRID */
+.games-title { font-size: 0.58rem; letter-spacing: 5px; color: var(--green3); align-self: flex-start; margin-bottom: 12px; }
+.games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; width: 100%; }
+
+.game-card {
+  border: 1px solid var(--green4); background: rgba(0,8,0,0.92);
+  padding: 20px 18px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;
+}
+.game-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--green3), transparent); opacity: 0.5;
+}
+.game-card:hover { border-color: var(--green); box-shadow: 0 0 20px #00ff4120; transform: translateY(-2px); }
+.game-card.locked { opacity: 0.45; cursor: not-allowed; }
+.game-card.locked:hover { transform: none; box-shadow: none; border-color: var(--green4); }
+
+.game-icon { font-size: 2rem; margin-bottom: 10px; filter: drop-shadow(0 0 6px var(--green)); }
+.game-name { font-size: 0.82rem; color: var(--green); letter-spacing: 2px; font-weight: bold; margin-bottom: 6px; }
+.game-desc { font-size: 0.6rem; color: var(--green3); line-height: 1.7; margin-bottom: 12px; }
+.game-stake { font-size: 0.62rem; color: var(--gold); letter-spacing: 1px; }
+.game-badge {
+  position: absolute; top: 10px; right: 10px;
+  font-size: 0.48rem; letter-spacing: 2px; padding: 2px 7px;
+  border: 1px solid var(--green3); color: var(--green3);
+}
+.game-badge.soon { border-color: var(--green4); color: var(--green4); }
+
+/* MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+  z-index: 100; display: none; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  width: min(480px, 95vw); border: 1px solid var(--green);
+  background: rgba(0,6,0,0.98); padding: 28px; box-shadow: 0 0 40px #00ff4122;
+  position: relative; max-height: 90vh; overflow-y: auto;
+}
+.modal-close {
+  position: absolute; top: 12px; right: 14px; background: transparent;
+  border: none; color: var(--green3); font-family: var(--font);
+  font-size: 0.9rem; cursor: pointer;
+}
+.modal-close:hover { color: var(--red); }
+.modal-title { font-size: 0.72rem; letter-spacing: 4px; color: var(--green); margin-bottom: 6px; }
+.modal-sub { font-size: 0.58rem; color: var(--green3); letter-spacing: 2px; margin-bottom: 20px; }
+.modal-hr { border: none; border-top: 1px solid var(--green4); margin: 16px 0; }
+
+/* COINFLIP */
+.coin-wrap { text-align: center; padding: 20px 0; }
+.coin {
+  font-size: 5rem; display: inline-block;
+  filter: drop-shadow(0 0 12px var(--green));
+  transition: transform 0.1s;
+}
+.coin.flipping { animation: coinFlip 0.12s steps(1) infinite; }
+@keyframes coinFlip {
+  0%   { content: '🟢'; transform: scaleX(1); }
+  50%  { transform: scaleX(-1); }
+  100% { transform: scaleX(1); }
+}
+.flip-choices { display: flex; gap: 10px; margin: 14px 0; }
+.flip-btn {
+  flex: 1; background: transparent; border: 1px solid var(--green4);
+  color: var(--green3); font-family: var(--font); font-size: 0.72rem;
+  letter-spacing: 2px; padding: 10px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+}
+.flip-btn.selected { border-color: var(--green); color: var(--green); background: var(--dim); }
+.flip-btn:hover { border-color: var(--green); color: var(--green); }
+
+.stake-row { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+.stake-input {
+  flex: 1; background: #000; border: 1px solid var(--green4); padding: 8px 12px;
+  font-family: var(--font); font-size: 0.9rem; color: var(--green);
+  outline: none; caret-color: var(--green);
+}
+.stake-input:focus { border-color: var(--green); }
+.stake-max { background: transparent; border: 1px solid var(--green4); color: var(--green3); font-family: var(--font); font-size: 0.58rem; letter-spacing: 1px; padding: 8px 10px; cursor: pointer; }
+.stake-max:hover { border-color: var(--green); color: var(--green); }
+
+.result-box {
+  text-align: center; padding: 16px; border: 1px solid var(--green4);
+  margin-top: 14px; min-height: 60px; font-size: 0.75rem; letter-spacing: 2px;
+}
+.result-win { color: var(--green); border-color: var(--green); box-shadow: 0 0 16px var(--dim); }
+.result-lose { color: var(--red); border-color: var(--red); }
+.result-amount { font-size: 1.4rem; font-weight: 900; margin-top: 6px; }
+
+/* DICE */
+.dice-face {
+  font-size: 4.5rem; text-align: center; padding: 16px 0;
+  filter: drop-shadow(0 0 10px var(--green));
+}
+.dice-face.rolling { animation: diceRoll 0.1s steps(1) infinite; }
+@keyframes diceRoll { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.dice-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+.dice-btn {
+  background: transparent; border: 1px solid var(--green4); color: var(--green3);
+  font-family: var(--font); font-size: 1.4rem; padding: 10px; cursor: pointer; transition: all 0.2s;
+}
+.dice-btn.selected { border-color: var(--green); color: var(--green); background: var(--dim); }
+.dice-btn:hover { border-color: var(--green3); color: var(--green); }
+
+/* HISTORY */
+.hist-panel { width: 100%; border: 1px solid var(--green4); background: rgba(0,8,0,0.9); padding: 16px 18px; margin-top: 20px; }
+.hist-title { font-size: 0.55rem; color: var(--green3); letter-spacing: 4px; margin-bottom: 10px; }
+.hist-inner { max-height: 100px; overflow-y: auto; font-size: 0.65rem; color: var(--green3); line-height: 2; scrollbar-width: thin; scrollbar-color: var(--green4) transparent; }
+.hist-win { color: var(--green2); }
+.hist-lose { color: var(--red); opacity: 0.7; }
+.hist-big { color: var(--gold); }
+
+/* BURST */
+.burst {
+  position: fixed; pointer-events: none; z-index: 200;
+  font-family: var(--font); font-size: 1rem; font-weight: 900;
+  animation: burstAnim 1.8s ease forwards;
+}
+.burst.win { color: var(--green); text-shadow: 0 0 8px var(--green); }
+.burst.lose { color: var(--red); text-shadow: 0 0 8px var(--red); }
+.burst.big  { color: var(--gold); text-shadow: 0 0 16px var(--gold); font-size: 1.5rem; }
+@keyframes burstAnim {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-90px) scale(1.4); }
+}
+
+@media (max-width: 500px) {
+  .games-grid { grid-template-columns: 1fr 1fr; }
+  .wallet-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+
+<div class="layer">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="arch-logo">ARCH</div>
+    <div class="hub-sub">◈ GAME HUB ◈</div>
+    <hr class="header-line">
+  </div>
+
+  <!-- AUTH -->
+  <div class="auth-wrap" id="authBox">
+    <div class="field-lbl">IDENTIFIANT</div>
+    <input type="text" id="authUser" placeholder="username" autocomplete="off" />
+    <div class="field-lbl">MOT DE PASSE</div>
+    <input type="password" id="authPass" placeholder="••••••••" />
+    <div class="err-msg" id="authErr"></div>
+    <button class="btn" onclick="doLogin()">[ ACCÉDER AU HUB ]</button>
+    <div style="text-align:center;margin-top:12px;">
+      <a href="https://arch-production.up.railway.app" style="font-size:0.58rem;color:var(--green3);letter-spacing:2px;">← RETOUR WALLET ARCH</a>
+    </div>
+  </div>
+
+  <!-- HUB UI -->
+  <div id="hubUI">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <span>NODE : <span class="user-tag" id="topUser">—</span></span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="https://arch-production.up.railway.app" class="btn-xs">◈ WALLET</a>
+        <button class="btn-xs" onclick="doLogout()">DÉCONNEXION</button>
+      </div>
+    </div>
+
+    <!-- Wallet bar -->
+    <div class="wallet-bar">
+      <div>
+        <div class="w-label">◈ SOLDE ARCH</div>
+        <div>
+          <span class="w-balance" id="walletBalance">0.000000</span>
+          <span class="w-unit">ARCH</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div class="w-label">GAINS TOTAUX</div>
+        <div style="font-size:0.78rem;color:var(--green3)" id="walletWins">+0.000000 ARCH</div>
+        <div class="w-label" style="margin-top:6px;">PERTES TOTALES</div>
+        <div style="font-size:0.78rem;color:var(--red)" id="walletLosses">-0.000000 ARCH</div>
+      </div>
+    </div>
+
+    <!-- Games -->
+    <div class="games-title">◈ SÉLECTION DU JEU</div>
+    <div class="games-grid">
+
+      <!-- Coinflip -->
+      <div class="game-card" onclick="openGame('coinflip')">
+        <span class="game-badge">LIVE</span>
+        <div class="game-icon">🪙</div>
+        <div class="game-name">COIN FLIP</div>
+        <div class="game-desc">Pile ou face. Double ta mise ou perds tout. 50% de chance de gagner.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+
+      <!-- Dice -->
+      <div class="game-card" onclick="openGame('dice')">
+        <span class="game-badge">LIVE</span>
+        <div class="game-icon">🎲</div>
+        <div class="game-name">DICE ROLL</div>
+        <div class="game-desc">Choisis un dé de 1 à 6. Si tu gagnes, x5 ta mise. 1 chance sur 6.</div>
+        <div class="game-stake">MISE MIN. 0.000001 ARCH</div>
+      </div>
+
+      <!-- Slots à venir -->
+      <div class="game-card locked" onclick="comingSoon()">
+        <span class="game-badge soon">BIENTÔT</span>
+        <div class="game-icon" style="filter:grayscale(1)">🎰</div>
+        <div class="game-name">SLOT MACHINE</div>
+        <div class="game-desc">3 rouleaux, multiplicateurs jusqu'à x50. Jackpot ARCH progressif.</div>
+        <div class="game-stake">À VENIR</div>
+      </div>
+
+      <!-- Blackjack à venir -->
+      <div class="game-card locked" onclick="comingSoon()">
+        <span class="game-badge soon">BIENTÔT</span>
+        <div class="game-icon" style="filter:grayscale(1)">🃏</div>
+        <div class="game-name">BLACKJACK</div>
+        <div class="game-desc">21 contre le dealer. Stratégie et chance. Mise jusqu'à x2.5.</div>
+        <div class="game-stake">À VENIR</div>
+      </div>
+
+    </div>
+
+    <!-- Historique -->
+    <div class="hist-panel">
+      <div class="hist-title">◈ HISTORIQUE DES PARTIES</div>
+      <div class="hist-inner" id="histLog">
+        <span style="color:var(--green4)">— en attente de parties —</span>
+      </div>
+    </div>
+
+  </div><!-- /hubUI -->
+
+</div><!-- /layer -->
+
+<!-- ═══ MODAL COINFLIP ═══ -->
+<div class="modal-overlay" id="modalCoinflip">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalCoinflip')">✕</button>
+    <div class="modal-title">◈ COIN FLIP</div>
+    <div class="modal-sub">PILE OU FACE — GAINS x2</div>
+    <hr class="modal-hr">
+
+    <div class="coin-wrap">
+      <div class="coin" id="coinFace">🪙</div>
+    </div>
+
+    <div class="flip-choices">
+      <button class="flip-btn selected" id="cfPile" onclick="selectFlip('PILE')">⬆ PILE</button>
+      <button class="flip-btn" id="cfFace" onclick="selectFlip('FACE')">⬇ FACE</button>
+    </div>
+
+    <div class="stake-row">
+      <input type="number" class="stake-input" id="cfStake" placeholder="mise en ARCH" min="0.000001" step="0.000001" />
+      <button class="stake-max" onclick="setMax('cfStake')">MAX</button>
+    </div>
+
+    <div class="err-msg" id="cfErr"></div>
+    <button class="btn" id="cfBtn" onclick="playCoinflip()">[ LANCER ]</button>
+
+    <div class="result-box" id="cfResult" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL DICE ═══ -->
+<div class="modal-overlay" id="modalDice">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalDice')">✕</button>
+    <div class="modal-title">◈ DICE ROLL</div>
+    <div class="modal-sub">CHOISIS UN DÉ — GAINS x5</div>
+    <hr class="modal-hr">
+
+    <div class="dice-face" id="diceFace">🎲</div>
+
+    <div class="dice-choices">
+      <button class="dice-btn" onclick="selectDice(1)">⚀</button>
+      <button class="dice-btn" onclick="selectDice(2)">⚁</button>
+      <button class="dice-btn" onclick="selectDice(3)">⚂</button>
+      <button class="dice-btn" onclick="selectDice(4)">⚃</button>
+      <button class="dice-btn" onclick="selectDice(5)">⚄</button>
+      <button class="dice-btn" onclick="selectDice(6)">⚅</button>
+    </div>
+
+    <div class="stake-row">
+      <input type="number" class="stake-input" id="diceStake" placeholder="mise en ARCH" min="0.000001" step="0.000001" />
+      <button class="stake-max" onclick="setMax('diceStake')">MAX</button>
+    </div>
+
+    <div class="err-msg" id="diceErr"></div>
+    <button class="btn" id="diceBtn" onclick="playDice()">[ LANCER ]</button>
+
+    <div class="result-box" id="diceResult" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  CONFIG — pointe vers ton serveur ARCH
+// ══════════════════════════════════════════════════
+const ARCH_API  = 'https://arch-production.up.railway.app';
+const HUB_API   = window.location.origin; // ce serveur
+
+let token    = localStorage.getItem('hub_token') || '';
+let username = localStorage.getItem('hub_user')  || '';
+let balance  = 0;
+let totalWins   = 0;
+let totalLosses = 0;
+
+// ── MATRIX RAIN ──────────────────────────────────
+(function(){
+  const c = document.getElementById('matrixCanvas');
+  const ctx = c.getContext('2d');
+  let W, H, drops;
+  const chars = 'ARCH01アイウエオカキクケコサシスセソタチ◈▓░▒┼╬═║╔╗╚╝';
+  function init(){
+    W = c.width = window.innerWidth;
+    H = c.height = window.innerHeight;
+    drops = Array(Math.floor(W/14)).fill(1);
+  }
+  function draw(){
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#00ff41';
+    ctx.font = '13px monospace';
+    drops.forEach((y,i) => {
+      ctx.fillText(chars[Math.floor(Math.random()*chars.length)], i*14, y*14);
+      if(y*14 > H && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    });
+  }
+  init();
+  window.addEventListener('resize', init);
+  setInterval(draw, 55);
+})();
+
+// ── API HELPERS ───────────────────────────────────
+async function archFetch(path, opts = {}) {
+  const res = await fetch(ARCH_API + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token,
+      ...(opts.headers || {}),
+    },
+  });
+  return res.json();
+}
+
+async function hubFetch(path, opts = {}) {
+  const res = await fetch(HUB_API + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token,
+      ...(opts.headers || {}),
+    },
+  });
+  return res.json();
+}
+
+// ── AUTH ──────────────────────────────────────────
+async function doLogin() {
+  const u = document.getElementById('authUser').value.trim();
+  const p = document.getElementById('authPass').value;
+  const errEl = document.getElementById('authErr');
+  errEl.textContent = '';
+  if (!u || !p) { errEl.textContent = 'Remplis tous les champs.'; return; }
+
+  const data = await archFetch('/api/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: u, password: p }),
+  });
+
+  if (!data.ok) { errEl.textContent = data.error || 'Erreur.'; return; }
+
+  token    = data.token;
+  username = data.username;
+  localStorage.setItem('hub_token', token);
+  localStorage.setItem('hub_user', username);
+  showHub();
+}
+
+function doLogout() {
+  token = username = '';
+  localStorage.removeItem('hub_token');
+  localStorage.removeItem('hub_user');
+  document.getElementById('authBox').style.display = '';
+  document.getElementById('hubUI').style.display = 'none';
+}
+
+// ── SHOW HUB ──────────────────────────────────────
+async function showHub() {
+  document.getElementById('authBox').style.display = 'none';
+  document.getElementById('hubUI').style.display = 'flex';
+  document.getElementById('topUser').textContent = username;
+  await refreshBalance();
+}
+
+async function refreshBalance() {
+  const data = await archFetch('/api/me');
+  if (!data.username) { doLogout(); return; }
+  balance = data.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+}
+
+// ── AUTO LOGIN ────────────────────────────────────
+if (token) showHub();
+
+// ── UTILS ─────────────────────────────────────────
+function setMax(inputId) {
+  document.getElementById(inputId).value = balance.toFixed(6);
+}
+
+function openGame(game) {
+  document.getElementById('modal' + game.charAt(0).toUpperCase() + game.slice(1)).classList.add('open');
+  document.getElementById(game === 'coinflip' ? 'cfResult' : 'diceResult').style.display = 'none';
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  refreshBalance();
+}
+
+function comingSoon() {
+  burst('BIENTÔT...', window.innerWidth/2, window.innerHeight/2, 'win');
+}
+
+function burst(txt, x, y, cls) {
+  const el = document.createElement('div');
+  el.className = 'burst ' + cls;
+  el.textContent = txt;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1900);
+}
+
+function addHist(txt, cls) {
+  const el = document.getElementById('histLog');
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = '> ' + txt;
+  if (el.firstChild && el.firstChild.textContent === '— en attente de parties —') el.innerHTML = '';
+  el.insertBefore(line, el.firstChild);
+}
+
+// ════════════════════════════════════════════════
+//  COIN FLIP
+// ════════════════════════════════════════════════
+let cfChoice = 'PILE';
+
+function selectFlip(choice) {
+  cfChoice = choice;
+  document.getElementById('cfPile').classList.toggle('selected', choice === 'PILE');
+  document.getElementById('cfFace').classList.toggle('selected', choice === 'FACE');
+}
+
+async function playCoinflip() {
+  const stakeVal = parseFloat(document.getElementById('cfStake').value);
+  const errEl    = document.getElementById('cfErr');
+  const resultEl = document.getElementById('cfResult');
+  const btn      = document.getElementById('cfBtn');
+  errEl.textContent = '';
+  resultEl.style.display = 'none';
+
+  if (isNaN(stakeVal) || stakeVal <= 0) { errEl.textContent = 'Mise invalide.'; return; }
+  if (stakeVal > balance)               { errEl.textContent = 'Solde insuffisant.'; return; }
+
+  btn.disabled = true;
+
+  // Débit via API
+  const debit = await archFetch('/api/transfer', {
+    method: 'POST',
+    body: JSON.stringify({ to: '__house__', amount: stakeVal, reason: 'coinflip' }),
+  });
+
+  if (!debit.ok) {
+    errEl.textContent = debit.error || 'Erreur de transfert.';
+    btn.disabled = false;
+    return;
+  }
+
+  balance = debit.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+
+  // Animation pièce
+  const coin = document.getElementById('coinFace');
+  const faces = ['🪙','⭕','🔵','⚪','🟢'];
+  let i = 0;
+  coin.classList.add('flipping');
+  const anim = setInterval(() => { coin.textContent = faces[i++ % faces.length]; }, 80);
+
+  await new Promise(r => setTimeout(r, 1800));
+  clearInterval(anim);
+  coin.classList.remove('flipping');
+
+  // Résultat côté client (50/50)
+  const result = Math.random() < 0.5 ? 'PILE' : 'FACE';
+  const won    = result === cfChoice;
+  coin.textContent = result === 'PILE' ? '⬆' : '⬇';
+
+  if (won) {
+    const gain = parseFloat((stakeVal * 2).toFixed(6));
+    // Crédit
+    const credit = await archFetch('/api/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ from: '__house__', amount: gain, reason: 'coinflip_win' }),
+    });
+    balance = credit.balance ?? balance + gain;
+    document.getElementById('walletBalance').textContent = balance.toFixed(6);
+    totalWins += gain;
+    document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
+
+    resultEl.className = 'result-box result-win';
+    resultEl.innerHTML = `✓ ${result} — TU GAGNES !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
+    addHist(`COINFLIP — ${cfChoice} vs ${result} — +${gain.toFixed(6)} ARCH`, 'hist-win');
+    burst('+' + gain.toFixed(6) + ' ARCH', window.innerWidth/2, 300, gain >= 1 ? 'big' : 'win');
+  } else {
+    totalLosses += stakeVal;
+    document.getElementById('walletLosses').textContent = '-' + totalLosses.toFixed(6) + ' ARCH';
+    resultEl.className = 'result-box result-lose';
+    resultEl.innerHTML = `✗ ${result} — PERDU<div class="result-amount">-${stakeVal.toFixed(6)} ARCH</div>`;
+    addHist(`COINFLIP — ${cfChoice} vs ${result} — -${stakeVal.toFixed(6)} ARCH`, 'hist-lose');
+    burst('-' + stakeVal.toFixed(6), window.innerWidth/2, 300, 'lose');
+  }
+
+  resultEl.style.display = 'block';
+  btn.disabled = false;
+}
+
+// ════════════════════════════════════════════════
+//  DICE ROLL
+// ════════════════════════════════════════════════
+let diceChoice = null;
+const diceFaces = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+
+function selectDice(n) {
+  diceChoice = n;
+  document.querySelectorAll('.dice-btn').forEach((b,i) => {
+    b.classList.toggle('selected', i + 1 === n);
+  });
+}
+
+async function playDice() {
+  const stakeVal = parseFloat(document.getElementById('diceStake').value);
+  const errEl    = document.getElementById('diceErr');
+  const resultEl = document.getElementById('diceResult');
+  const btn      = document.getElementById('diceBtn');
+  errEl.textContent = '';
+  resultEl.style.display = 'none';
+
+  if (diceChoice === null)              { errEl.textContent = 'Choisis un dé.'; return; }
+  if (isNaN(stakeVal) || stakeVal <= 0) { errEl.textContent = 'Mise invalide.'; return; }
+  if (stakeVal > balance)               { errEl.textContent = 'Solde insuffisant.'; return; }
+
+  btn.disabled = true;
+
+  // Débit
+  const debit = await archFetch('/api/transfer', {
+    method: 'POST',
+    body: JSON.stringify({ to: '__house__', amount: stakeVal, reason: 'dice' }),
+  });
+
+  if (!debit.ok) {
+    errEl.textContent = debit.error || 'Erreur de transfert.';
+    btn.disabled = false;
+    return;
+  }
+
+  balance = debit.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+
+  // Animation dé
+  const faceEl = document.getElementById('diceFace');
+  faceEl.classList.add('rolling');
+  let j = 0;
+  const anim = setInterval(() => { faceEl.textContent = diceFaces[j++ % 6]; }, 90);
+
+  await new Promise(r => setTimeout(r, 1600));
+  clearInterval(anim);
+  faceEl.classList.remove('rolling');
+
+  const rolled = Math.floor(Math.random() * 6) + 1;
+  faceEl.textContent = diceFaces[rolled - 1];
+
+  const won = rolled === diceChoice;
+
+  if (won) {
+    const gain = parseFloat((stakeVal * 5).toFixed(6));
+    const credit = await archFetch('/api/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ from: '__house__', amount: gain, reason: 'dice_win' }),
+    });
+    balance = credit.balance ?? balance + gain;
+    document.getElementById('walletBalance').textContent = balance.toFixed(6);
+    totalWins += gain;
+    document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
+
+    resultEl.className = 'result-box result-win';
+    resultEl.innerHTML = `✓ ${diceFaces[rolled-1]} — TU GAGNES !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
+    addHist(`DICE — choix ${diceChoice} vs ${rolled} — +${gain.toFixed(6)} ARCH`, 'hist-win');
+    burst('+' + gain.toFixed(6) + ' ARCH', window.innerWidth/2, 300, gain >= 1 ? 'big' : 'win');
+  } else {
+    totalLosses += stakeVal;
+    document.getElementById('walletLosses').textContent = '-' + totalLosses.toFixed(6) + ' ARCH';
+    resultEl.className = 'result-box result-lose';
+    resultEl.innerHTML = `✗ ${diceFaces[rolled-1]} — PERDU<div class="result-amount">-${stakeVal.toFixed(6)} ARCH</div>`;
+    addHist(`DICE — choix ${diceChoice} vs ${rolled} — -${stakeVal.toFixed(6)} ARCH`, 'hist-lose');
+    burst('-' + stakeVal.toFixed(6), window.innerWidth/2, 300, 'lose');
+  }
+
+  resultEl.style.display = 'block';
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>

@@ -276,6 +276,45 @@ async function api(req, res) {
     return json(res, 200, { users });
   }
 
+  // TRANSFER — utilisé par le hub de jeux pour débiter/créditer
+  // to: '__house__'  → débit joueur (mise)
+  // from: '__house__' → crédit joueur (gain)
+  if (endpoint === '/api/transfer' && req.method === 'POST') {
+    const user = getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+
+    const { to, from, amount, reason } = await body(req);
+    const amt = parseFloat(parseFloat(amount).toFixed(6));
+
+    if (isNaN(amt) || amt <= 0)
+      return json(res, 400, { error: 'Montant invalide.' });
+
+    // Débit joueur → house (mise)
+    if (to === '__house__') {
+      if (user.balance < amt)
+        return json(res, 400, { error: 'Solde insuffisant.' });
+      user.balance = parseFloat((user.balance - amt).toFixed(6));
+      user.history.unshift({ amount: -amt, at: new Date().toISOString(), reason: reason || 'game' });
+      if (user.history.length > 100) user.history.pop();
+      saveDB();
+      console.log(`[TRANSFER] ${user.username} → house : -${amt} ARCH (${reason})`);
+      return json(res, 200, { ok: true, balance: user.balance });
+    }
+
+    // Crédit joueur ← house (gain)
+    if (from === '__house__') {
+      user.balance      = parseFloat((user.balance + amt).toFixed(6));
+      user.total_earned = parseFloat((user.total_earned + amt).toFixed(6));
+      user.history.unshift({ amount: amt, at: new Date().toISOString(), reason: reason || 'game_win' });
+      if (user.history.length > 100) user.history.pop();
+      saveDB();
+      console.log(`[TRANSFER] house → ${user.username} : +${amt} ARCH (${reason})`);
+      return json(res, 200, { ok: true, balance: user.balance });
+    }
+
+    return json(res, 400, { error: 'Transfert non autorisé.' });
+  }
+
   return json(res, 404, { error: 'Route inconnue.' });
 }
 
