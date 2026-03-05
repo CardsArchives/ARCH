@@ -79,10 +79,6 @@ h1 {
   cursor: default;
 }
 
-.error {
-  color: var(--red);
-}
-
 .info {
   font-size: 0.9rem;
   color: var(--green3);
@@ -108,7 +104,7 @@ h1 {
 
 <script>
 // ============================================================
-//  CONFIG
+//  CONFIG & UTILS
 // ============================================================
 const CLIENT_ID = '__DISCORD_CLIENT_ID__';
 const SERVER_URL = '__SERVER_URL__';
@@ -116,25 +112,17 @@ const SERVER_URL = '__SERVER_URL__';
 console.log('🔍 CLIENT_ID:', CLIENT_ID);
 console.log('🔍 SERVER_URL:', SERVER_URL);
 
-// Déterminer l'URL du serveur
 let serverUrl = SERVER_URL;
 if (!serverUrl || serverUrl === '__SERVER_URL__') {
   serverUrl = location.origin;
-  console.log('⚠️ SERVER_URL pas injecté, utilisant location.origin:', serverUrl);
 } else {
   console.log('✅ SERVER_URL injecté:', serverUrl);
 }
 
-// ============================================================
-//  STATE
-// ============================================================
 let token = null;
 let balance = 0;
 let ws = null;
 
-// ============================================================
-//  UTILS
-// ============================================================
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
 }
@@ -149,45 +137,90 @@ function setInfo(msg) {
 }
 
 // ============================================================
-//  CREATE ANONYMOUS ARCH ACCOUNT
+//  DISCORD SDK VIA IIFE (Immediately Invoked Function Expression)
 // ============================================================
-async function createAccount() {
-  try {
-    setStatus('📝 Création compte...');
-    
-    // Créer un utilisateur anonyme
-    const userId = 'user_' + Math.random().toString(36).substring(7);
-    const userName = 'Player' + Math.floor(Math.random() * 10000);
-    
-    const res = await fetch(serverUrl + '/api/discord/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        discord_id: userId,
-        username: userName,
-        avatar: null
-      }),
-    });
-    
-    const data = await res.json();
-    console.log('Réponse serveur:', data);
-    
-    if (!data.token) {
-      throw new Error('Pas de token reçu');
+const initDiscordSDK = () => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Charger le SDK dynamiquement
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0';
+      
+      script.onload = async () => {
+        try {
+          // Le SDK est maintenant disponible globalement
+          if (!window.DiscordSDK) {
+            throw new Error('DiscordSDK not available on window');
+          }
+          
+          console.log('✅ Discord SDK chargé');
+          
+          const discordSdk = new window.DiscordSDK(CLIENT_ID);
+          console.log('✅ DiscordSDK instancié');
+          
+          // Ready
+          await discordSdk.ready();
+          console.log('✅ Discord SDK prêt');
+          
+          // Authorize
+          const { code } = await discordSdk.commands.authorize({
+            client_id: CLIENT_ID,
+            response_type: 'code',
+            state: '',
+            prompt: 'none',
+            scope: ['identify'],
+          });
+          console.log('✅ Code reçu');
+          
+          // Token exchange
+          const tr = await fetch(serverUrl + '/api/discord/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+          });
+          const { access_token } = await tr.json();
+          console.log('✅ Access token reçu');
+          
+          // Authenticate
+          const auth = await discordSdk.commands.authenticate({ access_token });
+          console.log('✅ Authentifié:', auth.user.username);
+          
+          // Créer compte ARCH
+          const ar = await fetch(serverUrl + '/api/discord/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              discord_id: auth.user.id,
+              username: auth.user.username,
+              avatar: auth.user.avatar
+            }),
+          });
+          
+          const ad = await ar.json();
+          if (!ad.token) throw new Error('Pas de token ARCH');
+          
+          token = ad.token;
+          balance = ad.balance || 0;
+          console.log('✅ Compte ARCH créé');
+          
+          resolve(true);
+        } catch(e) {
+          console.error('❌ Erreur SDK:', e);
+          reject(e);
+        }
+      };
+      
+      script.onerror = () => {
+        reject(new Error('Erreur chargement SDK'));
+      };
+      
+      document.head.appendChild(script);
+      
+    } catch(e) {
+      reject(e);
     }
-    
-    token = data.token;
-    balance = data.balance || 0;
-    
-    console.log('✅ Compte créé:', userName);
-    return true;
-    
-  } catch(e) {
-    console.error('❌ Erreur création compte:', e);
-    setStatus('❌ Erreur: ' + e.message);
-    return false;
-  }
-}
+  });
+};
 
 // ============================================================
 //  WEBSOCKET
@@ -196,15 +229,13 @@ async function connectWS() {
   return new Promise((resolve) => {
     try {
       let wsUrl = serverUrl;
-      
       if (!wsUrl.startsWith('http')) {
         wsUrl = location.protocol + '//' + wsUrl;
       }
-      
       wsUrl = wsUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
       wsUrl = wsUrl + '/ws?token=' + token;
       
-      console.log('🔌 Connexion WebSocket:', wsUrl);
+      console.log('🔌 WebSocket:', wsUrl);
       
       ws = new WebSocket(wsUrl);
       
@@ -226,13 +257,13 @@ async function connectWS() {
       };
       
       ws.onclose = () => {
-        console.log('⚠️ WebSocket fermé, reconnexion...');
+        console.log('⚠️ WebSocket fermé');
         setTimeout(connectWS, 3000);
       };
       
       setTimeout(resolve, 2000);
     } catch(e) {
-      console.error('Erreur WebSocket:', e);
+      console.error('Erreur WS:', e);
       resolve();
     }
   });
@@ -243,32 +274,32 @@ async function connectWS() {
 // ============================================================
 async function init() {
   try {
-    const ok = await createAccount();
+    setStatus('🔐 Discord SDK...');
+    await initDiscordSDK();
     
-    if (!ok) return;
-    
-    setStatus('🔌 Connexion WebSocket...');
+    setStatus('🔌 WebSocket...');
     await connectWS();
     
     setStatus('✅ Connecté!');
     setBalance(balance);
-    setInfo('Discord Activity fonctionne!');
+    setInfo('Discord Activity avec SDK fonctionne!');
     document.getElementById('testBtn').disabled = false;
     
   } catch(e) {
-    console.error('Erreur:', e);
+    console.error('❌ Erreur:', e);
     setStatus('❌ ' + e.message);
+    setInfo('Vérifies la console pour plus de détails');
   }
 }
 
 // Démarrer
-init();
+window.addEventListener('load', init);
 
 // Test button
 document.getElementById('testBtn').addEventListener('click', () => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'status', status: 'playing' }));
-    setInfo('✅ Message envoyé au serveur');
+    setInfo('✅ Message envoyé');
   } else {
     setInfo('❌ WebSocket pas connecté');
   }
