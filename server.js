@@ -539,8 +539,9 @@ async function api(req, res) {
     // grid[col][row] — 5 colonnes, 3 rangées
     const grid = [0,1,2,3,4].map(i => spin(i));
 
-    // Bonus ARCH : 1% de chance à chaque spin
-    const bonusTriggered = Math.random() < 0.01;
+    // Vérifier bonus ARCH : ARCH sur rouleaux 1,3,5 (cols 0,2,4)
+    const archOnOddReels = [0,2,4].filter(col => grid[col].some(cell => cell.id === 0));
+    const bonusTriggered = archOnOddReels.length === 3 && Math.random() < 0.01; // ~1% quand 3 ARCH alignés
 
     // Lignes de paiement : 5 lignes horizontales (rangées 0,1,2) + 2 diagonales
     const PAYLINES = [
@@ -576,13 +577,13 @@ async function api(req, res) {
     // Bonus ARCH wheel — récompense aléatoire avec moyenne raisonnable
     let bonusReward = 0;
     if (bonusTriggered) {
-      // Distribution log-normale : majorité entre 1-15 ARCH, quelques gros lots
       const r = Math.random();
-      if (r < 0.60)      bonusReward = parseFloat((Math.random() * 4 + 1).toFixed(6));       // 1-5 ARCH
-      else if (r < 0.85) bonusReward = parseFloat((Math.random() * 10 + 5).toFixed(6));      // 5-15 ARCH
-      else if (r < 0.97) bonusReward = parseFloat((Math.random() * 85 + 15).toFixed(6));     // 15-100 ARCH
-      else if (r < 0.999) bonusReward = parseFloat((Math.random() * 900 + 100).toFixed(6)); // 100-1000 ARCH
-      else bonusReward = parseFloat((Math.random() * 999000 + 1000).toFixed(6));             // 1000-1000000 ARCH (0.1%)
+      if      (r < 0.30)  bonusReward = parseFloat((Math.random() * 49    + 1    ).toFixed(6)); // 30% → 1-50 ARCH
+      else if (r < 0.55)  bonusReward = parseFloat((Math.random() * 450   + 50   ).toFixed(6)); // 25% → 50-500 ARCH
+      else if (r < 0.75)  bonusReward = parseFloat((Math.random() * 4500  + 500  ).toFixed(6)); // 20% → 500-5000 ARCH
+      else if (r < 0.90)  bonusReward = parseFloat((Math.random() * 45000 + 5000 ).toFixed(6)); // 15% → 5000-50000 ARCH
+      else if (r < 0.99)  bonusReward = parseFloat((Math.random() * 950000 + 50000).toFixed(6));// 9%  → 50000-1000000 ARCH
+      else                bonusReward = 1000000;                                                  // 1%  → JACKPOT ABSOLU
     }
 
     const gain = parseFloat((amt * totalMult).toFixed(6));
@@ -622,13 +623,16 @@ async function api(req, res) {
     if (user.balance < BUY_IN) return json(res, 400, { error: `Solde insuffisant. Coût : ${BUY_IN} ARCH.` });
     await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [BUY_IN, user.username]);
     await addHistory(user.username, -BUY_IN, 'bonus_wheel_buyin');
+    // Distribution buy-in : EV positif possible, vrai 1 à 1 000 000
     const r = Math.random();
     let reward;
-    if      (r < 0.60)  reward = parseFloat((Math.random() * 4    + 1   ).toFixed(6));
-    else if (r < 0.85)  reward = parseFloat((Math.random() * 10   + 5   ).toFixed(6));
-    else if (r < 0.97)  reward = parseFloat((Math.random() * 85   + 15  ).toFixed(6));
-    else if (r < 0.999) reward = parseFloat((Math.random() * 900  + 100 ).toFixed(6));
-    else                reward = parseFloat((Math.random() * 999000 + 1000).toFixed(6));
+    if      (r < 0.20)  reward = parseFloat((Math.random() * 999   + 1    ).toFixed(6)); // 20% → 1-1000 ARCH
+    else if (r < 0.45)  reward = parseFloat((Math.random() * 4000  + 1000 ).toFixed(6)); // 25% → 1000-5000 ARCH
+    else if (r < 0.65)  reward = parseFloat((Math.random() * 15000 + 5000 ).toFixed(6)); // 20% → 5000-20000 ARCH
+    else if (r < 0.80)  reward = parseFloat((Math.random() * 80000 + 20000).toFixed(6)); // 15% → 20000-100000 ARCH
+    else if (r < 0.92)  reward = parseFloat((Math.random() * 400000 + 100000).toFixed(6));// 12% → 100k-500k ARCH
+    else if (r < 0.99)  reward = parseFloat((Math.random() * 499000 + 500000).toFixed(6));// 7%  → 500k-999k ARCH
+    else                reward = 1000000;                                                   // 1%  → JACKPOT 1M ARCH
     await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [reward, user.username]);
     await addHistory(user.username, reward, 'bonus_wheel_reward');
     const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
@@ -636,7 +640,7 @@ async function api(req, res) {
     return json(res, 200, { ok: true, reward, balance: updated.rows[0].balance });
   }
 
-  // GAME — BLACKJACK (résultat serveur)
+
   if (endpoint === '/api/game/blackjack' && req.method === 'POST') {
     const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
