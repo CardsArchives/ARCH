@@ -164,18 +164,20 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 .slot-auto-info { display: flex; gap: 8px; align-items: center; font-size: 0.6rem; color: var(--green3); letter-spacing: 2px; }
 .slot-auto-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
 /* Bonus wheel */
-.slot-cell.scatter-cell { border-color: var(--gold); box-shadow: 0 0 20px #ffe066cc; animation: scatterPulse 0.35s ease infinite alternate; z-index: 2; }
-@keyframes scatterPulse { 0% { box-shadow: 0 0 10px #ffe06666; background: rgba(20,14,0,0.8); } 100% { box-shadow: 0 0 35px #ffe066; background: rgba(40,28,0,0.9); } }
-/* BONUS WHEEL MODAL */
-.bw-seg { padding:5px 10px; border:1px solid #00ff4122; font-size:0.5rem; letter-spacing:2px; font-family:var(--font); color:var(--green4); cursor:default; transition:all 0.15s; }
-.bw-seg.active { border-color:var(--gold); color:var(--gold); text-shadow:0 0 14px var(--gold); background:rgba(255,224,102,0.12); transform:scale(1.18); }
-.bw-d { display:inline-block; min-width:1ch; text-align:center; color:var(--green); text-shadow:0 0 8px #00ff4166; }
-.bw-d.rolling { color:var(--green4); }
-.bw-d.locked  { color:var(--gold); text-shadow:0 0 18px var(--gold); animation:bwLock 0.22s cubic-bezier(0.22,1,0.36,1); }
-.bw-dot { color:var(--green3); font-size:0.8em; margin:0 1px; opacity:0; transition:opacity 0.3s; display:inline-block; }
-.bw-dot.show { opacity:1; }
-@keyframes bwLock { 0%{transform:scaleY(1.7)scaleX(1.2)} 60%{transform:scaleY(0.85)} 100%{transform:scaleY(1)scaleX(1)} }
+/* HOLD & SPIN */
+.hs-cell { aspect-ratio:1; background:rgba(0,8,0,0.95); border:1px solid var(--green4); display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:var(--font); transition:all 0.3s; position:relative; overflow:hidden; }
+.hs-cell.empty { border-color:var(--green4); }
+.hs-cell.filled { border-color:var(--gold); background:rgba(20,14,0,0.9); box-shadow:0 0 12px #ffe06655; animation:hsFill 0.4s cubic-bezier(0.22,1,0.36,1); }
+.hs-cell.new-fill { animation:hsNewFill 0.5s cubic-bezier(0.22,1,0.36,1); border-color:var(--gold); background:rgba(30,20,0,0.95); box-shadow:0 0 20px #ffe066aa; }
+.hs-cell-sym { font-size:1rem; line-height:1; }
+.hs-cell-val { font-size:0.42rem; color:var(--gold); letter-spacing:1px; font-weight:900; margin-top:1px; }
+.hs-wheel-seg { padding:4px 9px; border:1px solid #ffe06622; font-size:0.48rem; letter-spacing:2px; font-family:var(--font); color:var(--green4); transition:all 0.15s; }
+.hs-wheel-seg.active { border-color:var(--gold); color:var(--gold); text-shadow:0 0 12px var(--gold); background:rgba(255,224,102,0.12); transform:scale(1.15); }
 #bonusWheelCanvas { border: 1px solid var(--green3); box-shadow: 0 0 30px #00ff4122; }
+@keyframes hsFill    { 0%{transform:scale(0.5);opacity:0} 100%{transform:scale(1);opacity:1} }
+@keyframes hsNewFill { 0%{transform:scale(1.4);box-shadow:0 0 40px #ffe066} 100%{transform:scale(1);box-shadow:0 0 12px #ffe06655} }
+.scatter-cell { border-color:var(--gold)!important; box-shadow:0 0 20px #ffe066cc!important; animation:scatterPulse 0.35s ease infinite alternate!important; }
+@keyframes scatterPulse { 0%{box-shadow:0 0 10px #ffe06666;background:rgba(20,14,0,0.8)} 100%{box-shadow:0 0 35px #ffe066;background:rgba(40,28,0,0.9)} }
 
 /* ═══ BLACKJACK ═══ */
 .bj-table { background: rgba(0,15,5,0.95); border: 1px solid var(--green3); padding: 16px; margin-bottom: 14px; }
@@ -600,8 +602,8 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
         <button class="btn" style="padding:4px 10px;font-size:0.55rem;margin-top:0;flex:none;width:auto" onclick="slotStopAuto()">STOP</button>
       </div>
     </div>
-    <button class="btn btn-gold" id="slotBuyInBtn" onclick="slotBuyInWheel()" style="margin-top:8px;font-size:0.52rem;letter-spacing:2px;width:100%">
-      &#9670; FEATURE BUY &nbsp;—&nbsp; <span id="slotBuyInCost">—</span> ARCH &nbsp;(50&times; mise)
+    <button class="btn btn-gold" id="slotBuyInBtn" onclick="hsFeatureBuy()" style="margin-top:8px;font-size:0.52rem;letter-spacing:2px;width:100%">
+      &#9670; FEATURE BUY &nbsp;&mdash;&nbsp; <span id="slotBuyInCost">—</span> ARCH &nbsp;(50&times; mise)
     </button>
     <div class="slot-auto-row" id="slotAutoRow" style="display:none">
       <span class="slot-ctrl-label">TOURS AUTO :</span>
@@ -614,28 +616,40 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   </div>
 </div>
 
-<!-- MODAL BONUS WHEEL ARCH -->
-<div class="modal-overlay" id="modalBonusWheel" style="z-index:200">
-  <div class="modal" style="width:min(440px,96vw);text-align:center;padding:28px 20px 22px">
-    <div class="modal-title" style="font-size:1.05rem;letter-spacing:8px">&#9670; ARCH BONUS &#9670;</div>
-    <div class="modal-sub" id="bwSubtitle" style="color:var(--gold);min-height:1.4em"></div>
-    <hr class="modal-hr">
+<!-- MODAL HOLD & SPIN BONUS -->
+<div class="modal-overlay" id="modalHoldSpin" style="z-index:200">
+  <div class="modal" style="width:min(500px,98vw);text-align:center;padding:22px 16px 18px">
+    <div class="modal-title" style="font-size:1rem;letter-spacing:6px">&#9670; HOLD &amp; SPIN &#9670;</div>
+    <div class="modal-sub" id="hsSubtitle" style="color:var(--gold)">BONUS ARCH &mdash; 7 SPINS</div>
+    <hr class="modal-hr" style="margin:8px 0">
 
-    <!-- Segments wheel -->
-    <div id="bwSegs" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:4px 0 18px"></div>
-
-    <!-- Reveal reward -->
-    <div id="bwReveal" style="display:none;margin-bottom:14px">
-      <div style="font-size:0.42rem;color:var(--green3);letter-spacing:5px;margin-bottom:6px">&#9670; REWARD &#9670;</div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:0;font-size:2.1rem;font-weight:900;font-family:var(--font)">
-        <span style="color:var(--green3);font-size:0.85rem;margin-right:3px">+</span>
-        <span id="bwDigits"></span>
-        <span style="color:var(--gold);font-size:0.6rem;margin-left:8px;letter-spacing:2px">ARCH</span>
+    <!-- Compteur spins + total -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px">
+      <div style="font-size:0.5rem;color:var(--green3);letter-spacing:3px">SPINS RESTANTS<br>
+        <span id="hsSpinsLeft" style="font-size:1.6rem;color:var(--gold);font-weight:900;line-height:1.1">7</span>
+      </div>
+      <div style="font-size:0.5rem;color:var(--green3);letter-spacing:3px;text-align:right">TOTAL ARCH<br>
+        <span id="hsTotal" style="font-size:1.6rem;color:var(--green);font-weight:900;line-height:1.1">0.000000</span>
       </div>
     </div>
 
-    <button class="btn btn-gold" id="bwSpinBtn" onclick="spinBonusWheel()">[ TOURNER ]</button>
-    <button class="btn" id="bwCloseBtn" onclick="closeBonusWheel()" style="display:none;margin-top:8px">[ CONTINUER ]</button>
+    <!-- Grille 5×3 Hold & Spin -->
+    <div id="hsGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px"></div>
+
+    <!-- Roue multiplicateur (apparaît uniquement si full grid) -->
+    <div id="hsWheelWrap" style="display:none;margin-bottom:10px">
+      <div style="font-size:0.45rem;color:var(--gold);letter-spacing:4px;margin-bottom:6px">&#9670; GRILLE COMPLETE &#9670; MULTIPLICATEUR &#9670;</div>
+      <div id="hsWheelSegs" style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center"></div>
+    </div>
+
+    <!-- Résultat final -->
+    <div id="hsFinalWrap" style="display:none;margin-bottom:10px">
+      <div style="font-size:0.45rem;color:var(--green3);letter-spacing:4px;margin-bottom:4px">&#9670; REWARD FINAL &#9670;</div>
+      <div id="hsFinalAmount" style="font-size:2rem;font-weight:900;color:var(--gold);text-shadow:0 0 20px var(--gold)"></div>
+    </div>
+
+    <button class="btn btn-gold" id="hsSpinBtn" onclick="hsDoSpin()">[ SPIN ]</button>
+    <button class="btn" id="hsCloseBtn" onclick="hsClose()" style="display:none;margin-top:8px">[ CONTINUER ]</button>
   </div>
 </div>
 
@@ -1381,7 +1395,7 @@ async function playSlots() {
   const gain = parseFloat((totalBet * totalMult).toFixed(6));
 
   if (data.bonusTriggered) {
-    // Anime les 3 cellules ARCH sur la grille principale (cols 0,2,4)
+    // Glow scatter sur les cellules ARCH des rouleaux 0,2,4
     [0,2,4].forEach(col => {
       for (let row = 0; row < 3; row++) {
         const cell = document.getElementById(`sc_${col}_${row}`);
@@ -1390,16 +1404,14 @@ async function playSlots() {
     });
     resEl.style.display = 'none';
     btn.disabled = false;
-    // Stoppe l'auto-spin
     const wasAuto = slotAutoRunning;
     if (wasAuto) slotStopAuto();
-    // Laisse voir les scatters 1.2s avant d'ouvrir le bonus
     setTimeout(() => {
       document.querySelectorAll('.scatter-cell').forEach(c => c.classList.remove('scatter-cell'));
-      openBonusWheel(data.bonusReward, totalBet, wasAuto);
+      hsOpen(totalBet, wasAuto, false);
     }, 1200);
-    addHist('SLOTS \u2014 BONUS ARCH DECLENCHE !', 'hist-big');
-    burst('\u2605 BONUS ARCH !', window.innerWidth/2, 280, 'big');
+    addHist('SLOTS \u2014 HOLD & SPIN DECLENCHE !', 'hist-big');
+    burst('\u2605 BONUS HOLD & SPIN !', window.innerWidth/2, 280, 'big');
   } else if (totalMult > 0) {
     totalWins += gain;
     document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
@@ -1447,193 +1459,197 @@ function slotStopAuto() {
   document.getElementById('slotAutoRow').style.display = 'none';
 }
 
-// ════ BONUS WHEEL ════
-const BW_SEGS = [
-  { label:'2×',     mult:2    },
-  { label:'5×',     mult:5    },
-  { label:'10×',    mult:10   },
-  { label:'25×',    mult:25   },
-  { label:'50×',    mult:50   },
-  { label:'100×',   mult:100  },
-  { label:'500×',   mult:500  },
-  { label:'1000×',  mult:1000 },
-  { label:'JACKPOT',mult:null },
+// ════ HOLD & SPIN ════
+const HS_WHEEL_SEGS = [
+  {label:'2×',mult:2},{label:'5×',mult:5},{label:'10×',mult:10},
+  {label:'25×',mult:25},{label:'50×',mult:50},{label:'100×',mult:100},{label:'1000×',mult:1000}
 ];
+let hsStake   = 0;
+let hsWasAuto = false;
+let hsSpins   = 7;
+let hsCells   = {};
+let hsRunning = false;
 
-let bwReward  = 0;
-let bwStake   = 0;
-let bwIsBuyin = false;
-let bwWasAuto = false;
-let bwDivIvs  = [];
-let bwLockTmrs= [];
+function hsOpen(stake, wasAuto, isBuyin) {
+  hsStake   = stake;
+  hsWasAuto = wasAuto;
+  hsSpins   = 7;
+  hsCells   = {};
+  hsRunning = false;
+  document.getElementById('hsSubtitle').textContent = isBuyin
+    ? `FEATURE BUY \u2014 ${parseFloat((stake*50).toFixed(6))} ARCH`
+    : 'BONUS ARCH \u2014 7 SPINS';
+  document.getElementById('hsSpinsLeft').textContent = 7;
+  document.getElementById('hsTotal').textContent = '0.000000';
+  document.getElementById('hsWheelWrap').style.display = 'none';
+  document.getElementById('hsFinalWrap').style.display = 'none';
+  document.getElementById('hsSpinBtn').style.display = '';
+  document.getElementById('hsSpinBtn').disabled = false;
+  document.getElementById('hsSpinBtn').textContent = '[ SPIN ]';
+  document.getElementById('hsCloseBtn').style.display = 'none';
+  hsRenderGrid();
+  document.getElementById('modalHoldSpin').classList.add('open');
+  SFX.play('slotsBonus');
+}
 
-function bwRenderSegs(activeMult) {
-  const wrap = document.getElementById('bwSegs');
-  wrap.innerHTML = '';
-  BW_SEGS.forEach(seg => {
-    const hit = activeMult !== null && (
-      seg.mult === activeMult || (seg.mult === null && activeMult > 1000)
-    );
+function hsRenderGrid() {
+  const g = document.getElementById('hsGrid');
+  g.innerHTML = '';
+  for (let i = 0; i < 15; i++) {
+    const cell = document.createElement('div');
+    const val = hsCells[i];
+    cell.className = 'hs-cell ' + (val !== undefined ? 'filled' : 'empty');
+    cell.id = `hsc_${i}`;
+    if (val !== undefined) {
+      cell.innerHTML = `<div class="hs-cell-sym">&#9670;</div><div class="hs-cell-val">${val.toFixed(4)}</div>`;
+    } else {
+      cell.innerHTML = `<div style="font-size:0.4rem;color:var(--green4);opacity:0.3">&#9632;</div>`;
+    }
+    g.appendChild(cell);
+  }
+}
+
+async function hsDoSpin() {
+  if (hsRunning) return;
+  hsRunning = true;
+  document.getElementById('hsSpinBtn').disabled = true;
+
+  const occupied = Object.keys(hsCells).map(Number);
+  const data = await archFetch('/api/game/hold-spin', {
+    method: 'POST',
+    body: JSON.stringify({ stake: hsStake, occupied })
+  });
+
+  if (!data.ok) { hsRunning = false; document.getElementById('hsSpinBtn').disabled = false; return; }
+
+  SFX.play('slotsStart');
+
+  if (data.newCells.length === 0) {
+    hsSpins--;
+    SFX.play('coinLose');
+  } else {
+    for (const { pos, val } of data.newCells) {
+      hsCells[pos] = val;
+      hsSpins++;
+      await new Promise(r => setTimeout(r, 120));
+      const cell = document.getElementById(`hsc_${pos}`);
+      if (cell) {
+        cell.className = 'hs-cell new-fill';
+        cell.innerHTML = `<div class="hs-cell-sym">&#9670;</div><div class="hs-cell-val">${val.toFixed(4)}</div>`;
+        SFX.play('slotsTick');
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    hsSpins -= 1; // consomme 1 spin
+  }
+
+  const total = Object.values(hsCells).reduce((s, v) => s + v, 0);
+  document.getElementById('hsSpinsLeft').textContent = Math.max(0, hsSpins);
+  document.getElementById('hsTotal').textContent = total.toFixed(6);
+
+  const filledCount = Object.keys(hsCells).length;
+
+  if (filledCount === 15) {
+    await hsFinalize(true);
+  } else if (hsSpins <= 0) {
+    await hsFinalize(false);
+  } else {
+    hsRunning = false;
+    document.getElementById('hsSpinBtn').disabled = false;
+  }
+}
+
+async function hsFinalize(fullGrid) {
+  const cellsArr = Object.entries(hsCells).map(([pos, val]) => ({ pos: Number(pos), val }));
+  const data = await archFetch('/api/game/hold-spin-end', {
+    method: 'POST',
+    body: JSON.stringify({ stake: hsStake, cells: cellsArr, fullGrid })
+  });
+  if (!data.ok) return;
+
+  balance = data.balance;
+  document.getElementById('walletBalance').textContent = balance.toFixed(6);
+  document.getElementById('hsSpinBtn').style.display = 'none';
+
+  if (fullGrid && data.multiplier > 1) {
+    await hsSpinWheel(data.multiplier);
+  }
+
+  const finalEl = document.getElementById('hsFinalWrap');
+  const amountEl = document.getElementById('hsFinalAmount');
+  if (data.multiplier > 1) {
+    amountEl.innerHTML = `<span style="font-size:0.6rem;color:var(--green3);display:block;margin-bottom:2px">${data.baseReward.toFixed(6)} \u00d7 ${data.multiplier}</span>+${data.finalReward.toFixed(6)} ARCH`;
+  } else {
+    amountEl.textContent = `+${data.finalReward.toFixed(6)} ARCH`;
+  }
+  finalEl.style.display = 'block';
+  document.getElementById('hsCloseBtn').style.display = '';
+
+  totalWins += data.finalReward;
+  document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
+  addHist(`HOLD & SPIN${data.multiplier > 1 ? ' \u00d7' + data.multiplier : ''} \u2014 +${data.finalReward.toFixed(6)} ARCH`, 'hist-big');
+  if (data.multiplier >= 50) {
+    SFX.play('slotsBonus');
+    burst(`\uD83D\uDC8E \u00d7${data.multiplier} ! +${data.finalReward.toFixed(6)} ARCH`, window.innerWidth/2, 220, 'big');
+  } else {
+    SFX.play('slotsWin');
+    burst(`\u2605 +${data.finalReward.toFixed(6)} ARCH !`, window.innerWidth/2, 220, 'big');
+  }
+}
+
+async function hsSpinWheel(targetMult) {
+  const wrap = document.getElementById('hsWheelWrap');
+  const segsEl = document.getElementById('hsWheelSegs');
+  wrap.style.display = 'block';
+  segsEl.innerHTML = '';
+  HS_WHEEL_SEGS.forEach(s => {
     const el = document.createElement('div');
-    el.className = 'bw-seg' + (hit ? ' active' : '');
-    el.textContent = seg.label;
-    wrap.appendChild(el);
+    el.className = 'hs-wheel-seg';
+    el.textContent = s.label;
+    segsEl.appendChild(el);
+  });
+  let idx = 0, count = 0;
+  await new Promise(resolve => {
+    const step = () => {
+      const els = segsEl.children;
+      Array.from(els).forEach(e => e.classList.remove('active'));
+      idx = (idx + 1) % els.length;
+      els[idx].classList.add('active');
+      count++;
+      const speed = count < 10 ? 80 : count < 18 ? 130 : count < 24 ? 200 : 300;
+      if (count < 28) { setTimeout(step, speed); return; }
+      Array.from(els).forEach(e => e.classList.remove('active'));
+      const hit = HS_WHEEL_SEGS.findIndex(s => s.mult === targetMult);
+      if (hit >= 0) els[hit].classList.add('active');
+      else els[els.length - 1].classList.add('active');
+      SFX.play('slotsTick');
+      setTimeout(resolve, 800);
+    };
+    setTimeout(step, 80);
   });
 }
 
-function openBonusWheel(reward, stake, wasAuto) {
-  bwReward  = reward;
-  bwStake   = stake;
-  bwIsBuyin = false;
-  bwWasAuto = wasAuto || false;
-  document.getElementById('bwSubtitle').textContent = '3 SCATTERS \u2014 BONUS GRATUIT';
-  _bwOpen();
+function hsClose() {
+  document.getElementById('modalHoldSpin').classList.remove('open');
 }
 
-async function slotBuyInWheel() {
+async function hsFeatureBuy() {
   const errEl = document.getElementById('slotsErr');
   errEl.textContent = '';
   const stakePerLine = parseFloat(document.getElementById('slotsStake').value) || 0;
   const activeLines  = slotActiveLinesMask.map((a,i) => a ? i : -1).filter(i => i >= 0);
-  if (activeLines.length === 0 || stakePerLine <= 0) { errEl.textContent = 'Configure ta mise d\'abord.'; return; }
+  if (activeLines.length === 0 || stakePerLine <= 0) { errEl.textContent = "Configure ta mise d'abord."; return; }
   const totalStake = parseFloat((stakePerLine * activeLines.length).toFixed(6));
   const cost = parseFloat((totalStake * 50).toFixed(6));
   if (balance < cost) { errEl.textContent = `Solde insuffisant. Coût : ${cost} ARCH.`; return; }
   const btn = document.getElementById('slotBuyInBtn');
   btn.disabled = true;
-  const data = await archFetch('/api/game/bonus-wheel-buyin', { method:'POST', body: JSON.stringify({ totalStake }) });
+  const data = await archFetch('/api/game/bonus-buyin', { method:'POST', body: JSON.stringify({ totalStake }) });
   btn.disabled = false;
   if (!data.ok) { errEl.textContent = data.error || 'Erreur.'; return; }
   balance = data.balance;
   document.getElementById('walletBalance').textContent = balance.toFixed(6);
-  bwReward  = data.reward;
-  bwStake   = totalStake;
-  bwIsBuyin = true;
-  bwWasAuto = false;
-  document.getElementById('bwSubtitle').textContent = `FEATURE BUY \u2014 ${cost} ARCH`;
-  _bwOpen();
-}
-
-function _bwOpen() {
-  bwDivIvs.forEach(clearInterval);  bwDivIvs  = [];
-  bwLockTmrs.forEach(clearTimeout); bwLockTmrs = [];
-  document.getElementById('bwReveal').style.display = 'none';
-  document.getElementById('bwSpinBtn').style.display = '';
-  document.getElementById('bwSpinBtn').disabled = false;
-  document.getElementById('bwCloseBtn').style.display = 'none';
-  bwRenderSegs(null);
-  document.getElementById('modalBonusWheel').classList.add('open');
-  SFX.play('slotsBonus');
-}
-
-function closeBonusWheel() {
-  bwDivIvs.forEach(clearInterval);  bwDivIvs  = [];
-  bwLockTmrs.forEach(clearTimeout); bwLockTmrs = [];
-  document.getElementById('modalBonusWheel').classList.remove('open');
-  const gain = bwReward;
-  const mult = bwStake > 0 ? Math.round(gain / bwStake) : '?';
-  totalWins += gain;
-  document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
-  const resEl = document.getElementById('slotsResult');
-  resEl.className = 'result-box result-win';
-  resEl.innerHTML = `&#9670; ${bwIsBuyin ? 'FEATURE BUY' : 'BONUS'} ${mult}&times; !<div class="result-amount">+${gain.toFixed(6)} ARCH</div>`;
-  resEl.style.display = 'block';
-  addHist(`${bwIsBuyin ? 'FEATURE BUY' : 'SLOTS BONUS'} ${mult}\u00d7 \u2014 +${gain.toFixed(6)} ARCH`, 'hist-big');
-  burst(`\u2605 ${mult}\u00d7 = +${gain.toFixed(6)} ARCH !`, window.innerWidth/2, 300, 'big');
-}
-
-async function spinBonusWheel() {
-  document.getElementById('bwSpinBtn').disabled = true;
-
-  // Phase 1 — segments défilent aléatoirement, ralentissent, s'arrêtent sur le bon
-  const mult = bwStake > 0 ? Math.round(bwReward / bwStake) : 2;
-  let idx = 0;
-  let count = 0;
-  const totalFlashes = 28;
-  await new Promise(resolve => {
-    const step = () => {
-      const segEls = document.getElementById('bwSegs').children;
-      Array.from(segEls).forEach(el => el.classList.remove('active'));
-      idx = (idx + 1) % segEls.length;
-      segEls[idx].classList.add('active');
-      count++;
-      // Ralentit progressivement
-      const speed = count < 10 ? 70 : count < 18 ? 110 : count < 24 ? 180 : 260;
-      if (count < totalFlashes) setTimeout(step, speed);
-      else {
-        // Force le bon segment
-        Array.from(segEls).forEach(el => el.classList.remove('active'));
-        bwRenderSegs(mult);
-        SFX.play('slotsTick');
-        setTimeout(resolve, 500);
-      }
-    };
-    setTimeout(step, 70);
-  });
-
-  // Phase 2 — reveal reward chiffre par chiffre gauche → droite
-  document.getElementById('bwReveal').style.display = 'block';
-  const rewardStr = bwReward.toFixed(6);
-  const [intStr, decStr] = rewardStr.split('.');
-  const container = document.getElementById('bwDigits');
-  container.innerHTML = '';
-
-  // Build spans : chaque chiffre entier puis point puis chaque décimale
-  const items = [];
-  intStr.split('').forEach(d => {
-    const s = document.createElement('span');
-    s.className = 'bw-d rolling';
-    s.textContent = Math.floor(Math.random()*10);
-    container.appendChild(s);
-    items.push({ el:s, final:d });
-  });
-  const dot = document.createElement('span');
-  dot.className = 'bw-dot';
-  dot.textContent = '.';
-  container.appendChild(dot);
-  decStr.split('').forEach(d => {
-    const s = document.createElement('span');
-    s.className = 'bw-d rolling';
-    s.textContent = Math.floor(Math.random()*10);
-    container.appendChild(s);
-    items.push({ el:s, final:d });
-  });
-
-  // Rolling sur tous les digits
-  bwDivIvs = items.map(({el}) =>
-    setInterval(() => { if (el.classList.contains('rolling')) el.textContent = Math.floor(Math.random()*10); }, 65)
-  );
-  setTimeout(() => dot.classList.add('show'), 150);
-
-  // Lock gauche → droite
-  // Entiers : 300ms entre chaque (suspense sur le gros chiffre)
-  // Décimales : 130ms entre chaque (plus rapide, moins important)
-  const intLen = intStr.length;
-  items.forEach(({el, final}, i) => {
-    const delay = i < intLen
-      ? 200 + i * 300
-      : 200 + intLen * 300 + (i - intLen) * 130;
-    bwLockTmrs.push(setTimeout(() => {
-      clearInterval(bwDivIvs[i]);
-      el.textContent = final;
-      el.classList.remove('rolling');
-      el.classList.add('locked');
-      SFX.play('slotsTick');
-      if (i === items.length - 1) {
-        setTimeout(() => {
-          document.getElementById('bwSpinBtn').style.display = 'none';
-          document.getElementById('bwCloseBtn').style.display = '';
-          if (mult >= 500) {
-            SFX.play('slotsBonus');
-            burst(`\uD83D\uDC8E ${mult}\u00d7 ! +${bwReward.toFixed(6)} ARCH`, window.innerWidth/2, 220, 'big');
-          } else {
-            SFX.play('slotsWin');
-            burst(`\u2605 ${mult}\u00d7 = +${bwReward.toFixed(6)} ARCH`, window.innerWidth/2, 220, 'big');
-          }
-        }, 350);
-      }
-    }, delay));
-  });
+  hsOpen(totalStake, false, true);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -538,7 +538,7 @@ async function api(req, res) {
     // grid[col][row] — 5 colonnes, 3 rangées
     const grid = [0,1,2,3,4].map(i => spin(i));
 
-    // Bonus : 3 ARCH sur rouleaux 0,2,4 (~3% par spin, fréquence casino réaliste)
+    // Bonus Hold & Spin : 3 ARCH sur rouleaux 0,2,4 (~3% par spin)
     const archOnOddReels = [0,2,4].filter(col => grid[col].some(cell => cell.id === 0));
     const bonusTriggered = archOnOddReels.length === 3;
 
@@ -573,23 +573,8 @@ async function api(req, res) {
       }
     }
 
-    // Scatter bonus : reward = multiplicateur × mise totale
-    // Multiplicateur NON exposé dans la réponse (révélé par l'animation côté front)
-    let bonusReward = 0;
-    if (bonusTriggered) {
-      const r = Math.random();
-      let mult;
-      if      (r < 0.30) mult = 2;
-      else if (r < 0.50) mult = 5;
-      else if (r < 0.66) mult = 10;
-      else if (r < 0.78) mult = 25;
-      else if (r < 0.87) mult = 50;
-      else if (r < 0.93) mult = 100;
-      else if (r < 0.97) mult = 500;
-      else if (r < 0.99) mult = 1000;
-      else               mult = Math.max(1000, Math.round(1000000 / Math.max(amt, 0.000001))); // jackpot ~1M
-      bonusReward = parseFloat((amt * mult).toFixed(6));
-    }
+    // Pas de reward direct — le bonus Hold & Spin est géré par un endpoint séparé
+    const bonusReward = 0;
 
     const gain = parseFloat((amt * totalMult).toFixed(6));
     const netDelta = parseFloat((gain - amt + bonusReward).toFixed(6));
@@ -612,16 +597,74 @@ async function api(req, res) {
     return json(res, 200, { ok: true, grid, winLines, totalMult, netDelta, bonusTriggered, bonusReward, balance: updated.rows[0].balance, xp_gained: xpS, cashback: cbS });
   }
 
-  // GAME — SLOTS BONUS WHEEL (legacy)
-  if (endpoint === '/api/game/slots-bonus' && req.method === 'POST') {
+  // GAME — HOLD & SPIN : un spin bonus (appelé N fois par le front)
+  // Retourne 0-3 nouvelles cases ARCH avec valeurs proportionnelles à la mise
+  if (endpoint === '/api/game/hold-spin' && req.method === 'POST') {
     const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
-    const { reward } = await body(req);
-    return json(res, 200, { ok: true, reward: parseFloat(reward) });
+    const { stake, occupied } = await body(req);
+    // occupied = liste des positions déjà remplies [0..14]
+    if (!stake || stake <= 0) return json(res, 400, { error: 'Mise invalide.' });
+    const FREE_POSITIONS = Array.from({length:15}, (_,i) => i).filter(i => !occupied.includes(i));
+    const newCells = [];
+    if (FREE_POSITIONS.length > 0) {
+      // 0-3 logos tombent, probabilité décroissante
+      const r = Math.random();
+      const count = r < 0.35 ? 0 : r < 0.70 ? 1 : r < 0.90 ? 2 : 3;
+      const chosen = [];
+      const pool = [...FREE_POSITIONS];
+      for (let i = 0; i < Math.min(count, pool.length); i++) {
+        const idx = Math.floor(Math.random() * pool.length);
+        chosen.push(pool.splice(idx, 1)[0]);
+      }
+      // Valeur de chaque logo : 0.5× à 20× la mise, distribution log
+      chosen.forEach(pos => {
+        const rv = Math.random();
+        let val;
+        if      (rv < 0.40) val = parseFloat((stake * (0.5  + Math.random() * 1.5)).toFixed(6));  // 40% → 0.5-2× stake
+        else if (rv < 0.70) val = parseFloat((stake * (2    + Math.random() * 3  )).toFixed(6));  // 30% → 2-5×
+        else if (rv < 0.88) val = parseFloat((stake * (5    + Math.random() * 5  )).toFixed(6));  // 18% → 5-10×
+        else if (rv < 0.97) val = parseFloat((stake * (10   + Math.random() * 10 )).toFixed(6));  // 9%  → 10-20×
+        else                val = parseFloat((stake * (20   + Math.random() * 80 )).toFixed(6));  // 1%  → 20-100× (jackpot)
+        newCells.push({ pos, val });
+      });
+    }
+    return json(res, 200, { ok: true, newCells });
   }
 
-  // GAME — FEATURE BUY (50× mise totale, RTP 96%, mult caché jusqu'au reveal)
-  if (endpoint === '/api/game/bonus-wheel-buyin' && req.method === 'POST') {
+  // GAME — HOLD & SPIN : finalise le bonus et crédite le reward
+  if (endpoint === '/api/game/hold-spin-end' && req.method === 'POST') {
+    const user = await getUser(tk);
+    if (!user) return json(res, 401, { error: 'Non connecté.' });
+    const { stake, cells, fullGrid } = await body(req);
+    // cells = [{pos, val}, ...] — toutes les cases remplies
+    // fullGrid = true si les 15 cases sont remplies (→ multiplicateur)
+    const baseReward = parseFloat(cells.reduce((s, c) => s + c.val, 0).toFixed(6));
+    let finalReward = baseReward;
+    let multiplier = 1;
+    if (fullGrid) {
+      const r = Math.random();
+      if      (r < 0.35) multiplier = 2;
+      else if (r < 0.60) multiplier = 5;
+      else if (r < 0.78) multiplier = 10;
+      else if (r < 0.90) multiplier = 25;
+      else if (r < 0.97) multiplier = 50;
+      else if (r < 0.995)multiplier = 100;
+      else               multiplier = 1000;
+      finalReward = parseFloat((baseReward * multiplier).toFixed(6));
+    }
+    if (finalReward > 0) {
+      await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [finalReward, user.username]);
+      await addHistory(user.username, finalReward, 'hold_spin_bonus');
+    }
+    const xpS = await addXp(user.username, 'slots_bonus');
+    const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
+    console.log(`[HOLD&SPIN] ${user.username} cells:${cells.length} base:${baseReward} mult:${multiplier}x final:${finalReward}`);
+    return json(res, 200, { ok: true, baseReward, multiplier, finalReward, balance: updated.rows[0].balance, xp_gained: xpS });
+  }
+
+  // GAME — FEATURE BUY (50× mise totale, accès direct au Hold & Spin)
+  if (endpoint === '/api/game/bonus-buyin' && req.method === 'POST') {
     const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
     const { totalStake } = await body(req);
@@ -629,27 +672,13 @@ async function api(req, res) {
     const BUY_IN = parseFloat((totalStake * 50).toFixed(6));
     if (user.balance < BUY_IN) return json(res, 400, { error: `Solde insuffisant. Coût : ${BUY_IN} ARCH.` });
     await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [BUY_IN, user.username]);
-    await addHistory(user.username, -BUY_IN, 'bonus_wheel_buyin');
-    const r = Math.random();
-    let mult;
-    if      (r < 0.28)  mult = 2;
-    else if (r < 0.50)  mult = 5;
-    else if (r < 0.68)  mult = 10;
-    else if (r < 0.81)  mult = 25;
-    else if (r < 0.90)  mult = 50;
-    else if (r < 0.95)  mult = 100;
-    else if (r < 0.98)  mult = 500;
-    else if (r < 0.995) mult = 1000;
-    else                mult = Math.max(1000, Math.round(1000000 / Math.max(totalStake, 0.000001)));
-    const reward = parseFloat((totalStake * mult).toFixed(6));
-    await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [reward, user.username]);
-    await addHistory(user.username, reward, 'bonus_wheel_reward');
+    await addHistory(user.username, -BUY_IN, 'feature_buy');
     const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[FEATURE BUY] ${user.username} stake:${totalStake} buyin:${BUY_IN} ${mult}x = ${reward} ARCH`);
-    return json(res, 200, { ok: true, reward, balance: updated.rows[0].balance });
+    console.log(`[FEATURE BUY] ${user.username} stake:${totalStake} buyin:${BUY_IN}`);
+    return json(res, 200, { ok: true, balance: updated.rows[0].balance });
   }
 
-
+  // GAME — BLACKJACK (résultat serveur)
   if (endpoint === '/api/game/blackjack' && req.method === 'POST') {
     const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
