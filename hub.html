@@ -165,19 +165,16 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 .slot-auto-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
 /* Bonus wheel */
 /* HOLD & SPIN */
-.hs-cell { aspect-ratio:1; background:rgba(0,8,0,0.95); border:1px solid var(--green4); display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:var(--font); transition:all 0.3s; position:relative; overflow:hidden; }
-.hs-cell.empty { border-color:var(--green4); }
-.hs-cell.filled { border-color:var(--gold); background:rgba(20,14,0,0.9); box-shadow:0 0 12px #ffe06655; animation:hsFill 0.4s cubic-bezier(0.22,1,0.36,1); }
-.hs-cell.new-fill { animation:hsNewFill 0.5s cubic-bezier(0.22,1,0.36,1); border-color:var(--gold); background:rgba(30,20,0,0.95); box-shadow:0 0 20px #ffe066aa; }
-.hs-cell-sym { font-size:1rem; line-height:1; }
-.hs-cell-val { font-size:0.42rem; color:var(--gold); letter-spacing:1px; font-weight:900; margin-top:1px; }
-.hs-wheel-seg { padding:4px 9px; border:1px solid #ffe06622; font-size:0.48rem; letter-spacing:2px; font-family:var(--font); color:var(--green4); transition:all 0.15s; }
-.hs-wheel-seg.active { border-color:var(--gold); color:var(--gold); text-shadow:0 0 12px var(--gold); background:rgba(255,224,102,0.12); transform:scale(1.15); }
-#bonusWheelCanvas { border: 1px solid var(--green3); box-shadow: 0 0 30px #00ff4122; }
-@keyframes hsFill    { 0%{transform:scale(0.5);opacity:0} 100%{transform:scale(1);opacity:1} }
-@keyframes hsNewFill { 0%{transform:scale(1.4);box-shadow:0 0 40px #ffe066} 100%{transform:scale(1);box-shadow:0 0 12px #ffe06655} }
+.hs-cell { aspect-ratio:1; background:rgba(0,8,0,0.95); border:1px solid var(--green4); display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:var(--font); transition:border-color 0.2s; }
+.hs-cell.filled { border-color:var(--gold); background:rgba(18,12,0,0.9); box-shadow:0 0 8px #ffe06644; }
+.hs-cell.new-fill { border-color:var(--gold); background:rgba(30,20,0,0.95); box-shadow:0 0 22px #ffe066bb; animation:hsLand 0.45s cubic-bezier(0.22,1,0.36,1); }
+.hs-cell-sym { font-size:0.9rem; line-height:1; color:var(--gold); }
+.hs-cell-val { font-size:0.38rem; color:var(--gold); letter-spacing:1px; font-weight:900; margin-top:1px; }
+.hs-wheel-seg { padding:4px 8px; border:1px solid #ffe06622; font-size:0.46rem; letter-spacing:2px; font-family:var(--font); color:var(--green4); transition:all 0.12s; }
+.hs-wheel-seg.active { border-color:var(--gold); color:var(--gold); text-shadow:0 0 12px var(--gold); background:rgba(255,224,102,0.1); transform:scale(1.12); }
 .scatter-cell { border-color:var(--gold)!important; box-shadow:0 0 20px #ffe066cc!important; animation:scatterPulse 0.35s ease infinite alternate!important; }
-@keyframes scatterPulse { 0%{box-shadow:0 0 10px #ffe06666;background:rgba(20,14,0,0.8)} 100%{box-shadow:0 0 35px #ffe066;background:rgba(40,28,0,0.9)} }
+@keyframes hsLand { 0%{transform:scale(1.5);opacity:0.3} 60%{transform:scale(0.92)} 100%{transform:scale(1)} }
+@keyframes scatterPulse { 0%{box-shadow:0 0 8px #ffe06655} 100%{box-shadow:0 0 28px #ffe066} }
 
 /* ═══ BLACKJACK ═══ */
 .bj-table { background: rgba(0,15,5,0.95); border: 1px solid var(--green3); padding: 16px; margin-bottom: 14px; }
@@ -616,38 +613,28 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
   </div>
 </div>
 
-<!-- MODAL HOLD & SPIN BONUS -->
+<!-- MODAL HOLD & SPIN -->
 <div class="modal-overlay" id="modalHoldSpin" style="z-index:200">
-  <div class="modal" style="width:min(500px,98vw);text-align:center;padding:22px 16px 18px">
+  <div class="modal" style="width:min(500px,98vw);text-align:center;padding:20px 14px 16px">
     <div class="modal-title" style="font-size:1rem;letter-spacing:6px">&#9670; HOLD &amp; SPIN &#9670;</div>
-    <div class="modal-sub" id="hsSubtitle" style="color:var(--gold)">BONUS ARCH &mdash; 7 SPINS</div>
+    <div class="modal-sub" id="hsSubtitle" style="color:var(--gold)">BONUS ARCH</div>
     <hr class="modal-hr" style="margin:8px 0">
-
-    <!-- Compteur spins + total -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px">
-      <div style="font-size:0.5rem;color:var(--green3);letter-spacing:3px">SPINS RESTANTS<br>
-        <span id="hsSpinsLeft" style="font-size:1.6rem;color:var(--gold);font-weight:900;line-height:1.1">7</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 4px">
+      <div style="font-size:0.45rem;color:var(--green3);letter-spacing:3px;text-align:center">
+        SPINS<br><span id="hsSpinsLeft" style="font-size:2rem;color:var(--gold);font-weight:900;line-height:1">3</span>
       </div>
-      <div style="font-size:0.5rem;color:var(--green3);letter-spacing:3px;text-align:right">TOTAL ARCH<br>
-        <span id="hsTotal" style="font-size:1.6rem;color:var(--green);font-weight:900;line-height:1.1">0.000000</span>
+      <div style="font-size:0.45rem;color:var(--green3);letter-spacing:3px;text-align:center">
+        TOTAL ARCH<br><span id="hsTotal" style="font-size:1.4rem;color:var(--green);font-weight:900;line-height:1">0.000000</span>
       </div>
     </div>
-
-    <!-- Grille 5×3 Hold & Spin -->
-    <div id="hsGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px"></div>
-
-    <!-- Roue multiplicateur (apparaît uniquement si full grid) -->
-    <div id="hsWheelWrap" style="display:none;margin-bottom:10px">
-      <div style="font-size:0.45rem;color:var(--gold);letter-spacing:4px;margin-bottom:6px">&#9670; GRILLE COMPLETE &#9670; MULTIPLICATEUR &#9670;</div>
-      <div id="hsWheelSegs" style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center"></div>
+    <div id="hsGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px"></div>
+    <div id="hsWheelWrap" style="display:none;margin-bottom:8px">
+      <div style="font-size:0.42rem;color:var(--gold);letter-spacing:4px;margin-bottom:5px">&#9670; FULL GRID &#9670; MULTIPLICATEUR &#9670;</div>
+      <div id="hsWheelSegs" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center"></div>
     </div>
-
-    <!-- Résultat final -->
-    <div id="hsFinalWrap" style="display:none;margin-bottom:10px">
-      <div style="font-size:0.45rem;color:var(--green3);letter-spacing:4px;margin-bottom:4px">&#9670; REWARD FINAL &#9670;</div>
-      <div id="hsFinalAmount" style="font-size:2rem;font-weight:900;color:var(--gold);text-shadow:0 0 20px var(--gold)"></div>
+    <div id="hsFinalWrap" style="display:none;margin-bottom:8px">
+      <div id="hsFinalAmount" style="font-size:1.8rem;font-weight:900;color:var(--gold);text-shadow:0 0 20px var(--gold)"></div>
     </div>
-
     <button class="btn btn-gold" id="hsSpinBtn" onclick="hsDoSpin()">[ SPIN ]</button>
     <button class="btn" id="hsCloseBtn" onclick="hsClose()" style="display:none;margin-top:8px">[ CONTINUER ]</button>
   </div>
@@ -1395,23 +1382,21 @@ async function playSlots() {
   const gain = parseFloat((totalBet * totalMult).toFixed(6));
 
   if (data.bonusTriggered) {
-    // Glow scatter sur les cellules ARCH des rouleaux 0,2,4
     [0,2,4].forEach(col => {
       for (let row = 0; row < 3; row++) {
         const cell = document.getElementById(`sc_${col}_${row}`);
         if (cell && data.grid[col][row].id === 0) cell.classList.add('scatter-cell');
       }
     });
-    resEl.style.display = 'none';
-    btn.disabled = false;
+    resEl.style.display = 'none'; btn.disabled = false;
     const wasAuto = slotAutoRunning;
     if (wasAuto) slotStopAuto();
     setTimeout(() => {
       document.querySelectorAll('.scatter-cell').forEach(c => c.classList.remove('scatter-cell'));
       hsOpen(totalBet, wasAuto, false);
     }, 1200);
-    addHist('SLOTS \u2014 HOLD & SPIN DECLENCHE !', 'hist-big');
-    burst('\u2605 BONUS HOLD & SPIN !', window.innerWidth/2, 280, 'big');
+    addHist('SLOTS \u2014 HOLD & SPIN !', 'hist-big');
+    burst('\u2605 HOLD & SPIN !', window.innerWidth/2, 280, 'big');
   } else if (totalMult > 0) {
     totalWins += gain;
     document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
@@ -1466,26 +1451,25 @@ const HS_WHEEL_SEGS = [
 ];
 let hsStake   = 0;
 let hsWasAuto = false;
-let hsSpins   = 7;
-let hsCells   = {};
+let hsSpins   = 3;
+let hsCells   = {};  // {pos: val}
 let hsRunning = false;
 
 function hsOpen(stake, wasAuto, isBuyin) {
   hsStake   = stake;
   hsWasAuto = wasAuto;
-  hsSpins   = 7;
+  hsSpins   = 3;  // démarre à 3, se remet à 3 à chaque nouveau logo
   hsCells   = {};
   hsRunning = false;
   document.getElementById('hsSubtitle').textContent = isBuyin
     ? `FEATURE BUY \u2014 ${parseFloat((stake*50).toFixed(6))} ARCH`
-    : 'BONUS ARCH \u2014 7 SPINS';
-  document.getElementById('hsSpinsLeft').textContent = 7;
+    : 'BONUS ARCH \u2014 3 SPINS';
+  document.getElementById('hsSpinsLeft').textContent = 3;
   document.getElementById('hsTotal').textContent = '0.000000';
   document.getElementById('hsWheelWrap').style.display = 'none';
   document.getElementById('hsFinalWrap').style.display = 'none';
   document.getElementById('hsSpinBtn').style.display = '';
   document.getElementById('hsSpinBtn').disabled = false;
-  document.getElementById('hsSpinBtn').textContent = '[ SPIN ]';
   document.getElementById('hsCloseBtn').style.display = 'none';
   hsRenderGrid();
   document.getElementById('modalHoldSpin').classList.add('open');
@@ -1496,15 +1480,13 @@ function hsRenderGrid() {
   const g = document.getElementById('hsGrid');
   g.innerHTML = '';
   for (let i = 0; i < 15; i++) {
-    const cell = document.createElement('div');
     const val = hsCells[i];
+    const cell = document.createElement('div');
     cell.className = 'hs-cell ' + (val !== undefined ? 'filled' : 'empty');
     cell.id = `hsc_${i}`;
-    if (val !== undefined) {
-      cell.innerHTML = `<div class="hs-cell-sym">&#9670;</div><div class="hs-cell-val">${val.toFixed(4)}</div>`;
-    } else {
-      cell.innerHTML = `<div style="font-size:0.4rem;color:var(--green4);opacity:0.3">&#9632;</div>`;
-    }
+    cell.innerHTML = val !== undefined
+      ? `<div class="hs-cell-sym">&#9670;</div><div class="hs-cell-val">${val.toFixed(4)}</div>`
+      : `<div style="font-size:0.35rem;color:var(--green4);opacity:0.25">&#9632;</div>`;
     g.appendChild(cell);
   }
 }
@@ -1519,37 +1501,35 @@ async function hsDoSpin() {
     method: 'POST',
     body: JSON.stringify({ stake: hsStake, occupied })
   });
-
   if (!data.ok) { hsRunning = false; document.getElementById('hsSpinBtn').disabled = false; return; }
 
   SFX.play('slotsStart');
 
   if (data.newCells.length === 0) {
-    hsSpins--;
+    // Aucun logo — consomme 1 spin
+    hsSpins = Math.max(0, hsSpins - 1);
     SFX.play('coinLose');
+    await new Promise(r => setTimeout(r, 300));
   } else {
+    // Chaque nouveau logo : s'affiche + remet le compteur à 3
     for (const { pos, val } of data.newCells) {
       hsCells[pos] = val;
-      hsSpins++;
-      await new Promise(r => setTimeout(r, 120));
+      hsSpins = 3; // RESET à 3 à chaque nouveau logo (mécanique Hold & Spin classique)
       const cell = document.getElementById(`hsc_${pos}`);
       if (cell) {
         cell.className = 'hs-cell new-fill';
         cell.innerHTML = `<div class="hs-cell-sym">&#9670;</div><div class="hs-cell-val">${val.toFixed(4)}</div>`;
         SFX.play('slotsTick');
       }
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 250));
     }
-    hsSpins -= 1; // consomme 1 spin
   }
 
   const total = Object.values(hsCells).reduce((s, v) => s + v, 0);
-  document.getElementById('hsSpinsLeft').textContent = Math.max(0, hsSpins);
+  document.getElementById('hsSpinsLeft').textContent = hsSpins;
   document.getElementById('hsTotal').textContent = total.toFixed(6);
 
-  const filledCount = Object.keys(hsCells).length;
-
-  if (filledCount === 15) {
+  if (Object.keys(hsCells).length === 15) {
     await hsFinalize(true);
   } else if (hsSpins <= 0) {
     await hsFinalize(false);
@@ -1560,41 +1540,33 @@ async function hsDoSpin() {
 }
 
 async function hsFinalize(fullGrid) {
+  document.getElementById('hsSpinBtn').style.display = 'none';
   const cellsArr = Object.entries(hsCells).map(([pos, val]) => ({ pos: Number(pos), val }));
   const data = await archFetch('/api/game/hold-spin-end', {
     method: 'POST',
     body: JSON.stringify({ stake: hsStake, cells: cellsArr, fullGrid })
   });
   if (!data.ok) return;
-
   balance = data.balance;
   document.getElementById('walletBalance').textContent = balance.toFixed(6);
-  document.getElementById('hsSpinBtn').style.display = 'none';
 
   if (fullGrid && data.multiplier > 1) {
     await hsSpinWheel(data.multiplier);
   }
 
-  const finalEl = document.getElementById('hsFinalWrap');
   const amountEl = document.getElementById('hsFinalAmount');
-  if (data.multiplier > 1) {
-    amountEl.innerHTML = `<span style="font-size:0.6rem;color:var(--green3);display:block;margin-bottom:2px">${data.baseReward.toFixed(6)} \u00d7 ${data.multiplier}</span>+${data.finalReward.toFixed(6)} ARCH`;
-  } else {
-    amountEl.textContent = `+${data.finalReward.toFixed(6)} ARCH`;
-  }
-  finalEl.style.display = 'block';
+  amountEl.innerHTML = data.multiplier > 1
+    ? `<span style="font-size:0.55rem;color:var(--green3);display:block">${data.baseReward.toFixed(6)} \u00d7 ${data.multiplier}</span>+${data.finalReward.toFixed(6)} ARCH`
+    : `+${data.finalReward.toFixed(6)} ARCH`;
+  document.getElementById('hsFinalWrap').style.display = 'block';
   document.getElementById('hsCloseBtn').style.display = '';
 
   totalWins += data.finalReward;
   document.getElementById('walletWins').textContent = '+' + totalWins.toFixed(6) + ' ARCH';
   addHist(`HOLD & SPIN${data.multiplier > 1 ? ' \u00d7' + data.multiplier : ''} \u2014 +${data.finalReward.toFixed(6)} ARCH`, 'hist-big');
-  if (data.multiplier >= 50) {
-    SFX.play('slotsBonus');
-    burst(`\uD83D\uDC8E \u00d7${data.multiplier} ! +${data.finalReward.toFixed(6)} ARCH`, window.innerWidth/2, 220, 'big');
-  } else {
-    SFX.play('slotsWin');
-    burst(`\u2605 +${data.finalReward.toFixed(6)} ARCH !`, window.innerWidth/2, 220, 'big');
-  }
+  const s = data.multiplier >= 25 ? 'big' : 'win';
+  if (data.multiplier >= 25) SFX.play('slotsBonus'); else SFX.play('slotsWin');
+  burst(`\u2605 +${data.finalReward.toFixed(6)} ARCH !`, window.innerWidth/2, 240, s);
 }
 
 async function hsSpinWheel(targetMult) {
@@ -1611,21 +1583,19 @@ async function hsSpinWheel(targetMult) {
   let idx = 0, count = 0;
   await new Promise(resolve => {
     const step = () => {
-      const els = segsEl.children;
-      Array.from(els).forEach(e => e.classList.remove('active'));
-      idx = (idx + 1) % els.length;
-      els[idx].classList.add('active');
+      Array.from(segsEl.children).forEach(e => e.classList.remove('active'));
+      idx = (idx + 1) % segsEl.children.length;
+      segsEl.children[idx].classList.add('active');
       count++;
-      const speed = count < 10 ? 80 : count < 18 ? 130 : count < 24 ? 200 : 300;
+      const speed = count < 10 ? 75 : count < 18 ? 120 : count < 24 ? 200 : 320;
       if (count < 28) { setTimeout(step, speed); return; }
-      Array.from(els).forEach(e => e.classList.remove('active'));
+      Array.from(segsEl.children).forEach(e => e.classList.remove('active'));
       const hit = HS_WHEEL_SEGS.findIndex(s => s.mult === targetMult);
-      if (hit >= 0) els[hit].classList.add('active');
-      else els[els.length - 1].classList.add('active');
+      segsEl.children[hit >= 0 ? hit : segsEl.children.length - 1].classList.add('active');
       SFX.play('slotsTick');
-      setTimeout(resolve, 800);
+      setTimeout(resolve, 700);
     };
-    setTimeout(step, 80);
+    setTimeout(step, 75);
   });
 }
 
