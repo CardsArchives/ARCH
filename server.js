@@ -507,11 +507,10 @@ async function api(req, res) {
     if (isNaN(amt) || amt <= 0) return json(res, 400, { error: 'Montant invalide.' });
     if (user.balance < amt) return json(res, 400, { error: 'Solde insuffisant.' });
 
-    // ARCH (id:0) = scatter bonus, uniquement sur rouleaux 0,2,4
-    // weight 10 sur pool ~78 → ~12% par cellule → ~31% d'avoir ≥1 ARCH par rouleau
-    // P(3 scatters) ≈ 0.31³ ≈ 3% → bonus toutes ~30-80 spins (fréquence casino réaliste)
+    // ARCH (id:0) scatter — uniquement sur rouleaux 0,2,4
+    // weight 10 sur pool ~78 → ~31% par rouleau → P(3 scatters) ≈ 3% → bonus ~toutes 30-80 spins
     const SYMS = [
-      { id: 0, name: 'ARCH',    weight: 10 }, // scatter bonus (rouleaux 0,2,4 seulement)
+      { id: 0, name: 'ARCH',    weight: 10 },
       { id: 1, name: 'NODE',    weight: 12, payouts: [0,0,2,5,10]  },
       { id: 2, name: 'BLOCK',   weight: 18, payouts: [0,0,1.5,3,6] },
       { id: 3, name: 'CRYSTAL', weight: 14, payouts: [0,0,3,8,15]  },
@@ -539,7 +538,7 @@ async function api(req, res) {
     // grid[col][row] — 5 colonnes, 3 rangées
     const grid = [0,1,2,3,4].map(i => spin(i));
 
-    // Bonus ARCH : 3 scatters sur rouleaux 0,2,4 → bonus déclenché (~3% par spin)
+    // Bonus : 3 ARCH sur rouleaux 0,2,4 (~3% par spin, fréquence casino réaliste)
     const archOnOddReels = [0,2,4].filter(col => grid[col].some(cell => cell.id === 0));
     const bonusTriggered = archOnOddReels.length === 3;
 
@@ -574,23 +573,22 @@ async function api(req, res) {
       }
     }
 
-    // Bonus ARCH wheel scatter — reward = multiplicateur × mise totale
-    // Segments wheel (comme casino en ligne) : 2x 5x 10x 25x 50x 100x 500x 10000x JACKPOT
-    // RTP scatter ~×18 mise en moyenne (c'est gratuit, c'est fun)
+    // Scatter bonus : reward = multiplicateur × mise totale
+    // Multiplicateur NON exposé dans la réponse (révélé par l'animation côté front)
     let bonusReward = 0;
-    let bonusMult = 0;
     if (bonusTriggered) {
       const r = Math.random();
-      if      (r < 0.30) bonusMult = 2;
-      else if (r < 0.52) bonusMult = 5;
-      else if (r < 0.68) bonusMult = 10;
-      else if (r < 0.80) bonusMult = 25;
-      else if (r < 0.89) bonusMult = 50;
-      else if (r < 0.95) bonusMult = 100;
-      else if (r < 0.98) bonusMult = 500;
-      else if (r < 0.99) bonusMult = 1000;
-      else               bonusMult = Math.floor(amt > 0 ? 1000000 / amt : 10000); // jackpot ~1M ARCH
-      bonusReward = parseFloat((amt * bonusMult).toFixed(6));
+      let mult;
+      if      (r < 0.30) mult = 2;
+      else if (r < 0.50) mult = 5;
+      else if (r < 0.66) mult = 10;
+      else if (r < 0.78) mult = 25;
+      else if (r < 0.87) mult = 50;
+      else if (r < 0.93) mult = 100;
+      else if (r < 0.97) mult = 500;
+      else if (r < 0.99) mult = 1000;
+      else               mult = Math.max(1000, Math.round(1000000 / Math.max(amt, 0.000001))); // jackpot ~1M
+      bonusReward = parseFloat((amt * mult).toFixed(6));
     }
 
     const gain = parseFloat((amt * totalMult).toFixed(6));
@@ -610,11 +608,11 @@ async function api(req, res) {
     let cbS = 0; if (netDelta < 0) cbS = await applyCashback(user.username, Math.abs(netDelta), perksS);
     const xpS = await addXp(user.username, bonusTriggered ? 'slots_bonus' : netDelta > 0 ? 'slots_win' : 'slots_lose');
     const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[SLOTS5x3] ${user.username} mult:${totalMult} lines:${winLines.length} bonus:${bonusReward}(${bonusMult}x) +${xpS}xp`);
-    return json(res, 200, { ok: true, grid, winLines, totalMult, netDelta, bonusTriggered, bonusReward, bonusMult, balance: updated.rows[0].balance, xp_gained: xpS, cashback: cbS });
+    console.log(`[SLOTS5x3] ${user.username} mult:${totalMult} lines:${winLines.length} bonus:${bonusReward} +${xpS}xp`);
+    return json(res, 200, { ok: true, grid, winLines, totalMult, netDelta, bonusTriggered, bonusReward, balance: updated.rows[0].balance, xp_gained: xpS, cashback: cbS });
   }
 
-  // GAME — SLOTS BONUS WHEEL (roue ARCH)
+  // GAME — SLOTS BONUS WHEEL (legacy)
   if (endpoint === '/api/game/slots-bonus' && req.method === 'POST') {
     const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
@@ -622,21 +620,16 @@ async function api(req, res) {
     return json(res, 200, { ok: true, reward: parseFloat(reward) });
   }
 
-  // GAME — BONUS WHEEL BUY-IN
-  // Coût = 50× mise totale. Mêmes segments que scatter mais RTP ~96%
-  // Segments : 2x(28%) 5x(22%) 10x(18%) 25x(13%) 50x(9%) 100x(5%) 500x(3%) 1000x(1.5%) JACKPOT(0.5%)
-  // EV = 0.28×2 + 0.22×5 + 0.18×10 + 0.13×25 + 0.09×50 + 0.05×100 + 0.03×500 + 0.015×1000 + 0.005×10000
-  //    = 0.56+1.1+1.8+3.25+4.5+5+15+15+50 = 96.21 → RTP = 96.21/100 ≈ 96.2% ✓ (coût 50×, mais on divise par 50)
+  // GAME — FEATURE BUY (50× mise totale, RTP 96%, mult caché jusqu'au reveal)
   if (endpoint === '/api/game/bonus-wheel-buyin' && req.method === 'POST') {
     const user = await getUser(tk);
     if (!user) return json(res, 401, { error: 'Non connecté.' });
     const { totalStake } = await body(req);
     if (!totalStake || totalStake <= 0) return json(res, 400, { error: 'Mise invalide.' });
     const BUY_IN = parseFloat((totalStake * 50).toFixed(6));
-    if (user.balance < BUY_IN) return json(res, 400, { error: `Solde insuffisant. Coût : ${BUY_IN} ARCH (50× mise totale).` });
+    if (user.balance < BUY_IN) return json(res, 400, { error: `Solde insuffisant. Coût : ${BUY_IN} ARCH.` });
     await query('UPDATE users SET balance = balance - $1 WHERE username = $2', [BUY_IN, user.username]);
     await addHistory(user.username, -BUY_IN, 'bonus_wheel_buyin');
-    // Segments RTP 96%
     const r = Math.random();
     let mult;
     if      (r < 0.28)  mult = 2;
@@ -647,13 +640,13 @@ async function api(req, res) {
     else if (r < 0.95)  mult = 100;
     else if (r < 0.98)  mult = 500;
     else if (r < 0.995) mult = 1000;
-    else                mult = Math.floor(totalStake > 0 ? 1000000 / totalStake : 10000); // jackpot ~1M ARCH
+    else                mult = Math.max(1000, Math.round(1000000 / Math.max(totalStake, 0.000001)));
     const reward = parseFloat((totalStake * mult).toFixed(6));
     await query('UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE username = $2', [reward, user.username]);
     await addHistory(user.username, reward, 'bonus_wheel_reward');
     const updated = await query('SELECT balance FROM users WHERE username = $1', [user.username]);
-    console.log(`[BONUS WHEEL BUY-IN] ${user.username} stake:${totalStake} buyin:${BUY_IN} → ${mult}x = ${reward} ARCH`);
-    return json(res, 200, { ok: true, reward, mult, buyin: BUY_IN, balance: updated.rows[0].balance });
+    console.log(`[FEATURE BUY] ${user.username} stake:${totalStake} buyin:${BUY_IN} ${mult}x = ${reward} ARCH`);
+    return json(res, 200, { ok: true, reward, balance: updated.rows[0].balance });
   }
 
 
