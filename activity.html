@@ -102,7 +102,11 @@ async function init() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
-    const { access_token } = await tokenRes.json();
+    const tokenData = await tokenRes.json();
+if (!tokenRes.ok || !tokenData.access_token) {
+  throw new Error(tokenData.error || tokenData.message || 'Token Discord invalide');
+}
+const { access_token } = tokenData;
 
     // 5. Récupère le profil Discord
     setProgress(68, 'PROFIL DISCORD...');
@@ -141,10 +145,12 @@ async function init() {
     frameEl.style.display = 'block';
     bootEl.style.display = 'none';
 
-  } catch(err) {
-    console.error('[ARCH Activity]', err);
-    showError('DISCORD REQUIS\nOuvre ARCH depuis un salon Discord.');
-  }
+  } catch (err) {
+  console.error('[ARCH Activity]', err);
+  showError(
+    (err && (err.message || err.error || JSON.stringify(err))) ||
+    'Erreur Discord inconnue'
+  );
 }
 
 init();

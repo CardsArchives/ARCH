@@ -123,10 +123,32 @@ function applyLuckyMult(mult, perks) {
 //  DISCORD ACTIVITY
 // ============================================================
 async function discordTokenExchange(code) {
-  const params = new URLSearchParams({ client_id: CONFIG.discordClientId, client_secret: CONFIG.discordClientSecret, grant_type: "authorization_code", code });
+  const params = new URLSearchParams({
+    client_id: CONFIG.discordClientId,
+    client_secret: CONFIG.discordClientSecret,
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: "http://127.0.0.1/callback"
+  });
+
   return new Promise((resolve, reject) => {
-    const req = https.request({ hostname: "discord.com", path: "/api/oauth2/token", method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }, res => { let d = ""; res.on("data", c => d += c); res.on("end", () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } }); });
-    req.on("error", reject); req.write(params.toString()); req.end();
+    const req = https.request({
+      hostname: "discord.com",
+      path: "/api/oauth2/token",
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    }, res => {
+      let d = "";
+      res.on("data", c => d += c);
+      res.on("end", () => {
+        try { resolve(JSON.parse(d)); }
+        catch (e) { reject(e); }
+      });
+    });
+
+    req.on("error", reject);
+    req.write(params.toString());
+    req.end();
   });
 }
 async function getOrCreateDiscordUser(discordId, discordName, discordAvatar) {
