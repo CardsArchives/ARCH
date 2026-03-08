@@ -345,7 +345,7 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
     <div class="err-msg" id="authErr"></div>
     <button class="btn" onclick="doLogin()">[ ACCEDER AU HUB ]</button>
     <div style="text-align:center;margin-top:12px;">
-      <a href="https://arch-production.up.railway.app" id="walletRetourLink" style="font-size:0.58rem;color:var(--green3);letter-spacing:2px;">&larr; RETOUR WALLET ARCH</a>
+      <a href="https://arch-production.up.railway.app" style="font-size:0.58rem;color:var(--green3);letter-spacing:2px;">&larr; RETOUR WALLET ARCH</a>
     </div>
   </div>
 
@@ -956,35 +956,18 @@ let username = localStorage.getItem('hub_user')  || '';
 
 // ── Discord Activity : auto-login si token injecté par activity.html ──
 (function discordActivityBoot() {
-  // Priorité 1 : URL params (discord token passé par activity.html)
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlToken  = urlParams.get('discord_token');
-  if (urlToken) {
-    token    = urlToken;
-    const dUser = urlParams.get('discord_user') || '';
-    const dName = urlParams.get('discord_name') || dUser;
-    username = dName || dUser;
-    localStorage.setItem('hub_token', token);
-    localStorage.setItem('hub_user',  username);
-    window.history.replaceState({}, '', window.location.pathname);
-    // Cache le lien "Retour Wallet" dans Discord
-    window.addEventListener('DOMContentLoaded', function() {
-      const lnk = document.getElementById('walletRetourLink');
-      if (lnk) lnk.style.display = 'none';
-    });
-    return;
-  }
-  // Priorité 2 : sessionStorage
   const discordToken = sessionStorage.getItem('arch_token');
   if (!discordToken) return;
   token    = discordToken;
   username = sessionStorage.getItem('arch_username') || '';
-  const dName = sessionStorage.getItem('discord_name');
-  if (dName) username = dName;
   localStorage.setItem('hub_token', token);
   localStorage.setItem('hub_user',  username);
-  sessionStorage.removeItem('arch_token');
+  // Affiche le nom Discord dans la topbar si dispo
+  const dName = sessionStorage.getItem('discord_name');
+  if (dName) username = dName;
+  sessionStorage.removeItem('arch_token'); // consomme le token, 1 seule fois
 })();
+let username = localStorage.getItem('hub_user')  || '';
 let balance  = 0, totalWins = 0, totalLosses = 0;
 let playerLevel = 1, playerXp = 0, playerXpForNext = 100, playerPerks = {};
 
