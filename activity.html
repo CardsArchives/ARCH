@@ -20,13 +20,10 @@ html,body { width:100%; height:100%; background:#000; overflow:hidden; font-fami
 <div id="boot">
   <div class="logo">ARCH</div>
   <div class="bar-wrap"><div class="bar" id="bar"></div></div>
-  <div class="status" id="status">INITIALISATION...</div>
+  <div class="status" id="status">CONNEXION...</div>
   <div class="err" id="err"></div>
 </div>
-
-<script src="/discord-sdk.js"></script>
 <script>
-var CLIENT_ID = '__DISCORD_CLIENT_ID__';
 var bar    = document.getElementById('bar');
 var status = document.getElementById('status');
 var err    = document.getElementById('err');
@@ -49,47 +46,28 @@ async function launch(data) {
 async function init() {
   try {
     var params     = new URLSearchParams(window.location.search);
-    var frameId    = params.get('frame_id')    || undefined;
-    var instanceId = params.get('instance_id') || undefined;
-    var guildId    = params.get('guild_id')    || undefined;
-    var channelId  = params.get('channel_id')  || undefined;
+    var instanceId = params.get('instance_id') || params.get('frame_id') || String(Date.now());
+    var guildId    = params.get('guild_id')    || '';
+    var channelId  = params.get('channel_id')  || '';
 
-    prog(20, 'CONNEXION DISCORD...');
-    var sdk = new DiscordSDK(CLIENT_ID, { frameId:frameId, instanceId:instanceId });
-    await sdk.ready();
-    prog(40, 'SDK PRÊT');
+    prog(40, 'CONNEXION AU SERVEUR...');
 
-    var code = null;
-    try {
-      prog(55, 'AUTORISATION...');
-      var r = await sdk.commands.authorize({
-        client_id: CLIENT_ID, response_type:'code', state:'', prompt:'none', scope:['identify']
-      });
-      code = r.code;
-    } catch(e) {
-      console.warn('authorize failed:', e.message);
-      prog(65, 'FALLBACK...');
-      var fb = await fetch('/api/discord/login-fallback', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ instance_id: instanceId||frameId||String(Date.now()), guild_id:guildId, channel_id:channelId })
-      });
-      var fbd = await fb.json();
-      if (!fbd.token) throw new Error('Fallback: '+(fbd.error||JSON.stringify(fbd)));
-      prog(90, 'BIENVENUE');
-      return await launch(fbd);
-    }
-
-    if (!code) throw new Error('Code OAuth manquant');
-    prog(75, 'COMPTE ARCH...');
-
-    var lr = await fetch('/api/discord/login', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ code:code })
+    // Pas de SDK — login direct via instance_id Discord
+    var fb = await fetch('/api/discord/login-fallback', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        instance_id: instanceId,
+        guild_id:    guildId,
+        channel_id:  channelId,
+      }),
     });
-    var ld = await lr.json();
-    if (!ld.token) throw new Error('Login: '+(ld.error||JSON.stringify(ld)));
-    prog(90, 'BIENVENUE ' + (ld.discord_name||ld.username||'').toUpperCase());
-    await launch(ld);
+
+    var data = await fb.json();
+    if (!data.token) throw new Error(data.error || JSON.stringify(data));
+
+    prog(90, 'BIENVENUE !');
+    await launch(data);
 
   } catch(e) {
     console.error('[ARCH]', e);
