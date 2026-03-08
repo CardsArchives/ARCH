@@ -954,17 +954,18 @@ const ARCH_API = 'https://arch-production.up.railway.app';
 let token    = localStorage.getItem('hub_token') || '';
 let username = localStorage.getItem('hub_user')  || '';
 
-// ── Discord Activity : token passé dans l'URL ──
+// ── Discord Activity : auto-login si token injecté par activity.html ──
 (function discordActivityBoot() {
-  const params = new URLSearchParams(window.location.search);
-  const discordToken = params.get('discord_token');
+  const discordToken = sessionStorage.getItem('arch_token');
   if (!discordToken) return;
   token    = discordToken;
-  username = params.get('discord_name') || params.get('discord_user') || '';
+  username = sessionStorage.getItem('arch_username') || '';
   localStorage.setItem('hub_token', token);
   localStorage.setItem('hub_user',  username);
-  // Nettoie l'URL sans recharger la page
-  window.history.replaceState({}, '', window.location.pathname);
+  // Affiche le nom Discord dans la topbar si dispo
+  const dName = sessionStorage.getItem('discord_name');
+  if (dName) username = dName;
+  sessionStorage.removeItem('arch_token'); // consomme le token, 1 seule fois
 })();
 let username = localStorage.getItem('hub_user')  || '';
 let balance  = 0, totalWins = 0, totalLosses = 0;
