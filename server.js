@@ -123,32 +123,10 @@ function applyLuckyMult(mult, perks) {
 //  DISCORD ACTIVITY
 // ============================================================
 async function discordTokenExchange(code) {
-  const params = new URLSearchParams({
-    client_id: CONFIG.discordClientId,
-    client_secret: CONFIG.discordClientSecret,
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: "http://127.0.0.1/callback"
-  });
-
+  const params = new URLSearchParams({ client_id: CONFIG.discordClientId, client_secret: CONFIG.discordClientSecret, grant_type: "authorization_code", code });
   return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: "discord.com",
-      path: "/api/oauth2/token",
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" }
-    }, res => {
-      let d = "";
-      res.on("data", c => d += c);
-      res.on("end", () => {
-        try { resolve(JSON.parse(d)); }
-        catch (e) { reject(e); }
-      });
-    });
-
-    req.on("error", reject);
-    req.write(params.toString());
-    req.end();
+    const req = https.request({ hostname: "discord.com", path: "/api/oauth2/token", method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }, res => { let d = ""; res.on("data", c => d += c); res.on("end", () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } }); });
+    req.on("error", reject); req.write(params.toString()); req.end();
   });
 }
 async function getOrCreateDiscordUser(discordId, discordName, discordAvatar) {
@@ -1207,11 +1185,19 @@ async function api(req, res) {
   if (endpoint === '/api/discord/token' && req.method === 'POST') {
     const { code } = await body(req);
     if (!code) return json(res, 400, { error: 'code manquant' });
+
     try {
       const result = await discordTokenExchange(code);
+      if (!result || !result.access_token) {
+        return json(res, 400, result || { error: 'Token Discord invalide' });
+      }
       return json(res, 200, { access_token: result.access_token });
-    } catch(e) { return json(res, 500, { error: e.message }); }
+    } catch (e) {
+      console.error('[DISCORD TOKEN ERROR]', e);
+      return json(res, 500, { error: e.message || 'discord token exchange failed' });
+    }
   }
+
   // DISCORD — Auth (get or create ARCH account)
   if (endpoint === '/api/discord/auth' && req.method === 'POST') {
     const { discord_id, username: dName, avatar } = await body(req);
@@ -1238,25 +1224,17 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  const urlObj   = new URL(req.url, 'http://localhost');
-  const pathname = urlObj.pathname;
-
-  if (pathname.startsWith('/api/')) return api(req, res);
+  if (req.url.startsWith('/api/')) return api(req, res);
 
   // Activity Discord — sert activity.html avec CLIENT_ID injecté
-  const isActivity =
-    pathname === '/activity' ||
-    pathname === '/activity/' ||
-    pathname === '/activity.html' ||
-    req.headers['x-discord-proxy'] !== undefined ||
-    (pathname === '/' && req.headers['referer'] && req.headers['referer'].includes('discord'));
+  // Discord appelle / ou /activity — on détecte via header ou URL
+  const isActivity = req.url === '/activity' || req.url === '/activity/'
+    || req.headers['x-discord-proxy'] !== undefined
+    || (req.url === '/' && req.headers['referer'] && req.headers['referer'].includes('discord'));
 
   if (isActivity) {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
-      if (err) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        return res.end('activity.html introuvable');
-      }
+      if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(injected);
@@ -1264,25 +1242,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  let filePath = '.' + pathname;
+  let filePath = '.' + req.url;
   if (filePath === './') filePath = './index.html';
-
-  const ext = path.extname(filePath);
-  const mime = {
-    '.html': 'text/html',
-    '.js': 'text/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.svg': 'image/svg+xml'
-  }[ext] || 'text/plain';
-
+  const ext  = path.extname(filePath);
+  const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[ext] || 'text/plain';
   fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      return res.end('Not found');
-    }
+    if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': mime });
     res.end(data);
   });
@@ -1377,3 +1342,4 @@ initDB()
     console.error('[FATAL] PostgreSQL connexion échouée :', err.message);
     process.exit(1);
   });
+

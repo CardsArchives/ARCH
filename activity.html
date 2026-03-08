@@ -56,7 +56,7 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 // ── Discord Embedded App SDK (importé depuis CDN officiel) ──
 import { DiscordSDK, patchUrlMappings } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs';
 
-const CLIENT_ID = '1480061734847779060';
+const CLIENT_ID = '__DISCORD_CLIENT_ID__';
 
 const statusEl = document.getElementById('bootStatus');
 const barEl    = document.getElementById('bootBar');
@@ -102,11 +102,7 @@ async function init() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
-    const tokenData = await tokenRes.json();
-if (!tokenRes.ok || !tokenData.access_token) {
-  throw new Error(tokenData.error || tokenData.message || 'Token Discord invalide');
-}
-const { access_token } = tokenData;
+    const { access_token } = await tokenRes.json();
 
     // 5. Récupère le profil Discord
     setProgress(68, 'PROFIL DISCORD...');
@@ -145,12 +141,10 @@ const { access_token } = tokenData;
     frameEl.style.display = 'block';
     bootEl.style.display = 'none';
 
-  } catch (err) {
-  console.error('[ARCH Activity]', err);
-  showError(
-    (err && (err.message || err.error || JSON.stringify(err))) ||
-    'Erreur Discord inconnue'
-  );
+  } catch(err) {
+    console.error('[ARCH Activity]', err);
+    showError('DISCORD REQUIS\nOuvre ARCH depuis un salon Discord.');
+  }
 }
 
 init();
