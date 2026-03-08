@@ -1252,6 +1252,7 @@ async function api(req, res) {
 //  SERVEUR HTTP
 // ============================================================
 const server = http.createServer(async (req, res) => {
+  console.log(`[REQ] ${req.method} ${req.url} | origin:${req.headers.origin||"-"}`);
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin':  '*',
@@ -1261,20 +1262,16 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // Discord proxifie via /.proxy/ — on normalise l'URL
-  const rawUrl   = req.url;
-  const cleanUrl = rawUrl.startsWith('/.proxy') ? rawUrl.slice('/.proxy'.length) : rawUrl;
+  if (req.url.startsWith('/api/') || req.url.startsWith('/discord/') || req.url.startsWith('/game/') || req.url.startsWith('/me') || req.url.startsWith('/auth')) return api(req, res);
 
-  if (cleanUrl.startsWith('/api/') || cleanUrl.startsWith('/discord/') || cleanUrl.startsWith('/game/') || cleanUrl.startsWith('/me') || cleanUrl.startsWith('/auth')) {
-    req.url = cleanUrl; // réécrit pour que api() lise le bon endpoint
-    return api(req, res);
-  }
+  // Parse le pathname proprement (ignore les query params Discord)
+  const urlPath = req.url.split('?')[0].split('#')[0];
 
-  const urlPath = cleanUrl.split('?')[0].split('#')[0];
-  const urlQuery = cleanUrl.includes('?') ? cleanUrl.split('?')[1] : '';
-  const isDiscordActivity = urlQuery.includes('frame_id=') || urlQuery.includes('instance_id=');
+  // Discord préfixe tout avec /activity/ — on strip ce préfixe
+  const cleanPath = urlPath.startsWith('/activity/') ? urlPath.slice('/activity'.length) : urlPath;
 
-  if (urlPath === '/activity' || urlPath === '/activity/' || (isDiscordActivity && urlPath === '/')) {
+  // Activity Discord — sert activity.html avec CLIENT_ID injecté
+  if (cleanPath === '/' || cleanPath === '/activity' || cleanPath === '/activity/') {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
       if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
@@ -1284,8 +1281,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  let filePath = '.' + urlPath;
-  if (filePath === './' || filePath === '.') filePath = './index.html';
+  let filePath = '.' + cleanPath;
+  if (filePath === './') filePath = './index.html';
   const ext  = path.extname(filePath);
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[ext] || 'text/plain';
   fs.readFile(filePath, (err, data) => {
