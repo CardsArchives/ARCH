@@ -1265,7 +1265,7 @@ const server = http.createServer(async (req, res) => {
   const urlPath = req.url.split('?')[0].split('#')[0];
 
   // Activity Discord — sert activity.html avec CLIENT_ID injecté
-  if (urlPath === '/activity' || urlPath === '/activity/' || urlPath === '/') {
+  if (urlPath === '/activity' || urlPath === '/activity/') {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
       if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
