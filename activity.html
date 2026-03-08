@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ARCH</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #00ff41; }
+
+#boot {
+  position: fixed; inset: 0; background: #000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 100; gap: 18px;
+}
+.boot-logo {
+  font-size: clamp(2rem, 10vw, 3.5rem); font-weight: 900; letter-spacing: 14px;
+  text-shadow: 0 0 10px #00ff41, 0 0 30px #00ff41, 0 0 80px #00ff4155;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+.boot-status {
+  font-size: 0.62rem; letter-spacing: 4px; color: #008f11;
+  min-height: 1.2em; text-align: center;
+}
+.boot-bar-wrap {
+  width: min(260px, 80vw); height: 2px; background: #003b00;
+}
+.boot-bar {
+  height: 100%; background: #00ff41;
+  width: 0%; transition: width 0.4s ease;
+  box-shadow: 0 0 8px #00ff41;
+}
+.boot-err {
+  font-size: 0.62rem; color: #ff003c; letter-spacing: 2px;
+  text-align: center; display: none; max-width: 300px; line-height: 1.6;
+}
+
+#gameFrame {
+  width: 100%; height: 100%; border: none; display: none;
+}
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div class="boot-logo">ARCH</div>
+  <div class="boot-bar-wrap"><div class="boot-bar" id="bootBar"></div></div>
+  <div class="boot-status" id="bootStatus">INITIALISATION...</div>
+  <div class="boot-err" id="bootErr"></div>
+</div>
+
+<iframe id="gameFrame" src="" allow="autoplay; clipboard-write"></iframe>
+
+<script type="module">
+// ── Discord Embedded App SDK (importé depuis CDN officiel) ──
+import { DiscordSDK, patchUrlMappings } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs';
+
+const CLIENT_ID = '__DISCORD_CLIENT_ID__';
+
+const statusEl = document.getElementById('bootStatus');
+const barEl    = document.getElementById('bootBar');
+const errEl    = document.getElementById('bootErr');
+const bootEl   = document.getElementById('boot');
+const frameEl  = document.getElementById('gameFrame');
+
+function setProgress(pct, msg) {
+  barEl.style.width = pct + '%';
+  if (msg) statusEl.textContent = msg;
+}
+
+function showError(msg) {
+  errEl.textContent = msg;
+  errEl.style.display = 'block';
+  statusEl.textContent = 'ERREUR';
+}
+
+async function init() {
+  try {
+    // 1. Init SDK
+    setProgress(15, 'CONNEXION DISCORD...');
+    const sdk = new DiscordSDK(CLIENT_ID);
+    await sdk.ready();
+
+    // 2. Patch URL mappings — Discord proxifie /api vers Railway
+    patchUrlMappings([{ prefix: '/api', target: '' }]);
+
+    // 3. Authorize — récupère le code OAuth2
+    setProgress(35, 'AUTHENTIFICATION...');
+    const { code } = await sdk.commands.authorize({
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      state: '',
+      prompt: 'none',
+      scope: ['identify'],
+    });
+
+    // 4. Échange le code contre un access token (via notre serveur)
+    setProgress(55, 'VERIFICATION IDENTITE...');
+    const tokenRes = await fetch('/api/discord/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const { access_token } = await tokenRes.json();
+
+    // 5. Récupère le profil Discord
+    setProgress(68, 'PROFIL DISCORD...');
+    await sdk.commands.authenticate({ access_token });
+    const me = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    }).then(r => r.json());
+
+    // 6. Crée / récupère le compte ARCH lié au Discord ID
+    setProgress(82, 'CHARGEMENT COMPTE ARCH...');
+    const authRes = await fetch('/api/discord/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        discord_id: me.id,
+        username:   me.global_name || me.username,
+        avatar:     me.avatar,
+      }),
+    });
+    const archAccount = await authRes.json();
+    if (!archAccount.token) throw new Error('Echec création compte ARCH');
+
+    // 7. Stocke le token ARCH dans sessionStorage, accessible par hub.html (même origine)
+    sessionStorage.setItem('arch_token',    archAccount.token);
+    sessionStorage.setItem('arch_username', archAccount.username);
+    sessionStorage.setItem('arch_balance',  archAccount.balance);
+    sessionStorage.setItem('discord_name',  me.global_name || me.username);
+    sessionStorage.setItem('discord_avatar', me.avatar ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png` : '');
+    sessionStorage.setItem('is_discord_activity', '1');
+
+    // 8. Lance le hub
+    setProgress(100, 'LANCEMENT...');
+    await new Promise(r => setTimeout(r, 400));
+
+    frameEl.src = '/hub.html';
+    frameEl.style.display = 'block';
+    bootEl.style.display = 'none';
+
+  } catch(err) {
+    console.error('[ARCH Activity]', err);
+    showError('DISCORD REQUIS\nOuvre ARCH depuis un salon Discord.');
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>

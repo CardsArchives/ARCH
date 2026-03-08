@@ -953,6 +953,21 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 const ARCH_API = 'https://arch-production.up.railway.app';
 let token    = localStorage.getItem('hub_token') || '';
 let username = localStorage.getItem('hub_user')  || '';
+
+// ── Discord Activity : auto-login si token injecté par activity.html ──
+(function discordActivityBoot() {
+  const discordToken = sessionStorage.getItem('arch_token');
+  if (!discordToken) return;
+  token    = discordToken;
+  username = sessionStorage.getItem('arch_username') || '';
+  localStorage.setItem('hub_token', token);
+  localStorage.setItem('hub_user',  username);
+  // Affiche le nom Discord dans la topbar si dispo
+  const dName = sessionStorage.getItem('discord_name');
+  if (dName) username = dName;
+  sessionStorage.removeItem('arch_token'); // consomme le token, 1 seule fois
+})();
+let username = localStorage.getItem('hub_user')  || '';
 let balance  = 0, totalWins = 0, totalLosses = 0;
 let playerLevel = 1, playerXp = 0, playerXpForNext = 100, playerPerks = {};
 

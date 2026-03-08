@@ -21,8 +21,8 @@ const CONFIG = {
   scanDuration: 25,
   claimWindow:  5,
   adminPass:    process.env.ADMIN_PASS || 'CHANGE_MOI',
-  discordClientId:     process.env.DISCORD_CLIENT_ID     || '1479233676544970834',
-  discordClientSecret: process.env.DISCORD_CLIENT_SECRET || 't0TzG4PK-8oOnuDZYA8uGwkYKECbxYw8',
+  discordClientId:     process.env.DISCORD_CLIENT_ID     || '1480061734847779060',
+  discordClientSecret: process.env.DISCORD_CLIENT_SECRET || 'REMPLACE_PAR_TON_NOUVEAU_SECRET',
 };
 
 // ============================================================
