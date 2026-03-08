@@ -27,7 +27,6 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 <iframe id="gameFrame" src="" allow="autoplay; clipboard-write"></iframe>
 
 <script type="module">
-// Import ESM depuis jsdelivr — le seul CDN fiable dans les iframes Discord
 import { DiscordSDK, patchUrlMappings } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs';
 
 const CLIENT_ID = '__DISCORD_CLIENT_ID__';
@@ -42,7 +41,7 @@ function setProgress(pct, msg) {
   if (msg) statusEl.textContent = msg;
 }
 function showError(msg) {
-  errEl.innerHTML = msg.replace(/\n/g, '<br>');
+  errEl.innerHTML = String(msg).replace(/\n/g, '<br>');
   errEl.style.display = 'block';
   statusEl.textContent = 'ERREUR';
   barEl.style.background = '#ff003c';
@@ -50,8 +49,25 @@ function showError(msg) {
 
 async function init() {
   try {
+    setProgress(10, 'LECTURE URL...');
+
+    // Discord injecte frame_id et instance_id dans le hash ou query
+    // On les extrait pour les passer au SDK
+    const params = new URLSearchParams(
+      window.location.search ||
+      window.location.hash.replace('#', '?')
+    );
+    const frameId    = params.get('frame_id');
+    const instanceId = params.get('instance_id');
+
     setProgress(15, 'CONNEXION DISCORD...');
-    const sdk = new DiscordSDK(CLIENT_ID);
+
+    // Passe frameId/instanceId si présents pour éviter l'erreur URL
+    const sdkOptions = {};
+    if (frameId)    sdkOptions.frameId    = frameId;
+    if (instanceId) sdkOptions.instanceId = instanceId;
+
+    const sdk = new DiscordSDK(CLIENT_ID, sdkOptions);
     await sdk.ready();
     setProgress(28, 'SDK PRET');
 
@@ -65,7 +81,7 @@ async function init() {
       prompt: 'none',
       scope: ['identify'],
     });
-    if (!code) throw new Error('Autorisation Discord refusee');
+    if (!code) throw new Error('Autorisation refusee');
     setProgress(52, 'CODE RECU');
 
     setProgress(58, 'ECHANGE TOKEN...');
@@ -86,14 +102,18 @@ async function init() {
       headers: { Authorization: 'Bearer ' + tokenData.access_token },
     });
     const me = await meRes.json();
-    if (!me.id) throw new Error('Profil Discord inaccessible: ' + JSON.stringify(me));
+    if (!me.id) throw new Error('Profil inaccessible: ' + JSON.stringify(me));
     setProgress(82, 'BONJOUR ' + (me.global_name || me.username).toUpperCase());
 
     setProgress(88, 'COMPTE ARCH...');
     const authRes = await fetch('/api/discord/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ discord_id: me.id, username: me.global_name || me.username, avatar: me.avatar }),
+      body: JSON.stringify({
+        discord_id: me.id,
+        username:   me.global_name || me.username,
+        avatar:     me.avatar,
+      }),
     });
     const arch = await authRes.json();
     if (!authRes.ok || !arch.token) throw new Error('ARCH: ' + (arch.error || 'echec'));
@@ -102,7 +122,8 @@ async function init() {
     sessionStorage.setItem('arch_username',       arch.username);
     sessionStorage.setItem('arch_balance',        arch.balance);
     sessionStorage.setItem('discord_name',        me.global_name || me.username);
-    sessionStorage.setItem('discord_avatar',      me.avatar ? 'https://cdn.discordapp.com/avatars/' + me.id + '/' + me.avatar + '.png' : '');
+    sessionStorage.setItem('discord_avatar',      me.avatar
+      ? 'https://cdn.discordapp.com/avatars/' + me.id + '/' + me.avatar + '.png' : '');
     sessionStorage.setItem('is_discord_activity', '1');
 
     setProgress(100, 'LANCEMENT...');
