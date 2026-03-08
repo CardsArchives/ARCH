@@ -1266,11 +1266,9 @@ const server = http.createServer(async (req, res) => {
   // Parse le pathname proprement (ignore les query params Discord)
   const urlPath = req.url.split('?')[0].split('#')[0];
 
-  // Discord préfixe tout avec /activity/ — on strip ce préfixe
-  const cleanPath = urlPath.startsWith('/activity/') ? urlPath.slice('/activity'.length) : urlPath;
-
   // Activity Discord — sert activity.html avec CLIENT_ID injecté
-  if (cleanPath === '/' || cleanPath === '/activity' || cleanPath === '/activity/') {
+  // Discord charge la page via /.proxy/ donc on écoute /activity et /activity/
+  if (urlPath === '/activity' || urlPath === '/activity/' || urlPath.startsWith('/activity/?')) {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
       if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
@@ -1280,8 +1278,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  let filePath = '.' + cleanPath;
-  if (filePath === './') filePath = './index.html';
+  // Hub et site normal
+  let filePath = '.' + urlPath;
+  if (filePath === './' || filePath === '.') filePath = './index.html';
   const ext  = path.extname(filePath);
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[ext] || 'text/plain';
   fs.readFile(filePath, (err, data) => {
