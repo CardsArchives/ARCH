@@ -1261,19 +1261,19 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  if (req.url.startsWith('/api/') || req.url.startsWith('/discord/') || req.url.startsWith('/game/') || req.url.startsWith('/me') || req.url.startsWith('/auth')) return api(req, res);
+  // Discord proxifie via /.proxy/ — on normalise l'URL
+  const rawUrl   = req.url;
+  const cleanUrl = rawUrl.startsWith('/.proxy') ? rawUrl.slice('/.proxy'.length) : rawUrl;
 
-  // Parse le pathname proprement (ignore les query params Discord)
-  const urlPath = req.url.split('?')[0].split('#')[0];
-  const urlQuery = req.url.includes('?') ? req.url.split('?')[1] : '';
+  if (cleanUrl.startsWith('/api/') || cleanUrl.startsWith('/discord/') || cleanUrl.startsWith('/game/') || cleanUrl.startsWith('/me') || cleanUrl.startsWith('/auth')) {
+    req.url = cleanUrl; // réécrit pour que api() lise le bon endpoint
+    return api(req, res);
+  }
 
-  // Détecte si la requête vient de Discord (iframe Activity)
-  // Discord passe toujours frame_id et instance_id en query params
+  const urlPath = cleanUrl.split('?')[0].split('#')[0];
+  const urlQuery = cleanUrl.includes('?') ? cleanUrl.split('?')[1] : '';
   const isDiscordActivity = urlQuery.includes('frame_id=') || urlQuery.includes('instance_id=');
 
-  // Sert activity.html si :
-  // - URL = /activity ou /activity/
-  // - OU requête vient de Discord (frame_id présent) sur /
   if (urlPath === '/activity' || urlPath === '/activity/' || (isDiscordActivity && urlPath === '/')) {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
       if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
@@ -1284,7 +1284,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Site normal
   let filePath = '.' + urlPath;
   if (filePath === './' || filePath === '.') filePath = './index.html';
   const ext  = path.extname(filePath);
