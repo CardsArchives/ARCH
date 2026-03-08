@@ -402,7 +402,7 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
     <div class="topbar">
       <div>NODE : <span class="user-tag" id="topUser">—</span></div>
       <div style="display:flex;gap:6px;">
-        <button class="btn-xs" onclick="window.location.replace('/hub.html')" style="border-color:#00ff4166;color:#00ff41;">🎮 GAME HUB</button>
+        <button class="btn-xs" onclick="try{top.location.href='/hub.html'}catch(e){window.location.href='/hub.html'}" style="border-color:#00ff4166;color:#00ff41;">🎮 GAME HUB</button>
         <button class="btn-xs" onclick="logout()">DÉCONNEXION</button>
       </div>
     </div>
