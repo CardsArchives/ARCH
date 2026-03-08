@@ -5,109 +5,95 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ARCH</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #00ff41; }
-#boot { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 18px; }
-.boot-logo { font-size: clamp(2rem, 10vw, 3.5rem); font-weight: 900; letter-spacing: 14px; text-shadow: 0 0 10px #00ff41, 0 0 30px #00ff41; animation: pulse 2s ease-in-out infinite; }
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:100%; height:100%; background:#000; overflow:hidden; font-family:'Courier New',monospace; color:#00ff41; }
+#boot { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; gap:18px; }
+.logo { font-size:clamp(2rem,10vw,3.5rem); font-weight:900; letter-spacing:14px; text-shadow:0 0 10px #00ff41,0 0 30px #00ff41; animation:pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
-.boot-status { font-size: 0.62rem; letter-spacing: 4px; color: #008f11; min-height: 1.2em; text-align: center; }
-.boot-bar-wrap { width: min(260px, 80vw); height: 2px; background: #003b00; }
-.boot-bar { height: 100%; background: #00ff41; width: 0%; transition: width 0.4s ease; box-shadow: 0 0 8px #00ff41; }
-.boot-err { font-size: 0.58rem; color: #ff003c; letter-spacing: 1px; text-align: center; display: none; max-width: 94vw; line-height: 1.8; padding: 0 16px; word-break: break-word; }
+.status { font-size:0.62rem; letter-spacing:4px; color:#008f11; min-height:1.2em; text-align:center; }
+.bar-wrap { width:min(260px,80vw); height:2px; background:#003b00; }
+.bar { height:100%; background:#00ff41; width:0%; transition:width 0.4s ease; box-shadow:0 0 8px #00ff41; }
+.err { font-size:0.58rem; color:#ff003c; letter-spacing:1px; text-align:center; display:none; max-width:94vw; line-height:1.8; padding:0 16px; word-break:break-word; }
 </style>
 </head>
 <body>
 <div id="boot">
-  <div class="boot-logo">ARCH</div>
-  <div class="boot-bar-wrap"><div class="boot-bar" id="bootBar"></div></div>
-  <div class="boot-status" id="bootStatus">INITIALISATION...</div>
-  <div class="boot-err" id="bootErr"></div>
+  <div class="logo">ARCH</div>
+  <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+  <div class="status" id="status">INITIALISATION...</div>
+  <div class="err" id="err"></div>
 </div>
 
-<script src="https://unpkg.com/@discord/embedded-app-sdk@1.4.1/dist/index.umd.js"></script>
-
+<script src="/discord-sdk.js"></script>
 <script>
 var CLIENT_ID = '__DISCORD_CLIENT_ID__';
-var barEl = document.getElementById('bootBar');
-var statusEl = document.getElementById('bootStatus');
-var errEl = document.getElementById('bootErr');
+var bar    = document.getElementById('bar');
+var status = document.getElementById('status');
+var err    = document.getElementById('err');
 
-function setProgress(pct, msg) { barEl.style.width = pct + '%'; if (msg) statusEl.textContent = msg; }
-function showError(msg) { errEl.innerHTML = String(msg).replace(/\n/g, '<br>'); errEl.style.display = 'block'; statusEl.textContent = 'ERREUR'; barEl.style.background = '#ff003c'; }
+function prog(pct, msg) { bar.style.width=pct+'%'; if(msg) status.textContent=msg; }
+function fail(msg) { err.innerHTML=String(msg).replace(/\n/g,'<br>'); err.style.display='block'; status.textContent='ERREUR'; bar.style.background='#ff003c'; }
 
 async function launch(data) {
-  setProgress(100, 'LANCEMENT...');
+  prog(100, 'LANCEMENT...');
   var qs = new URLSearchParams({
     discord_token: data.token,
-    discord_user: data.username || '',
-    discord_name: data.discord_name || data.username || '',
-    discord_bal: String(data.balance || 0),
+    discord_user:  data.username || '',
+    discord_name:  data.discord_name || data.username || '',
+    discord_bal:   String(data.balance || 0),
   }).toString();
-  await new Promise(function(r) { setTimeout(r, 250); });
+  await new Promise(function(r){ setTimeout(r,300); });
   window.location.href = '/hub.html?' + qs;
 }
 
 async function init() {
   try {
-    var params = new URLSearchParams(window.location.search);
-    var frameId = params.get('frame_id') || undefined;
+    var params     = new URLSearchParams(window.location.search);
+    var frameId    = params.get('frame_id')    || undefined;
     var instanceId = params.get('instance_id') || undefined;
-    var guildId = params.get('guild_id') || undefined;
-    var channelId = params.get('channel_id') || undefined;
+    var guildId    = params.get('guild_id')    || undefined;
+    var channelId  = params.get('channel_id')  || undefined;
 
-    var SDKClass = (window.EmbeddedAppSDK && window.EmbeddedAppSDK.DiscordSDK) || window.DiscordSDK || null;
-    if (!SDKClass) throw new Error('SDK Discord non chargé — vérifier CDN');
-
-    setProgress(20, 'CONNEXION DISCORD...');
-    var sdk = new SDKClass(CLIENT_ID, { frameId: frameId, instanceId: instanceId });
+    prog(20, 'CONNEXION DISCORD...');
+    var sdk = new DiscordSDK(CLIENT_ID, { frameId:frameId, instanceId:instanceId });
     await sdk.ready();
-    setProgress(40, 'SDK PRÊT');
+    prog(40, 'SDK PRÊT');
 
     var code = null;
     try {
-      setProgress(55, 'AUTORISATION...');
+      prog(55, 'AUTORISATION...');
       var r = await sdk.commands.authorize({
-        client_id: CLIENT_ID,
-        response_type: 'code',
-        state: '',
-        prompt: 'none',
-        scope: ['identify']
+        client_id: CLIENT_ID, response_type:'code', state:'', prompt:'none', scope:['identify']
       });
       code = r.code;
-    } catch (e) {
+    } catch(e) {
       console.warn('authorize failed:', e.message);
-      setProgress(65, 'FALLBACK...');
+      prog(65, 'FALLBACK...');
       var fb = await fetch('/api/discord/login-fallback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instance_id: instanceId || frameId || String(Date.now()),
-          guild_id: guildId,
-          channel_id: channelId
-        })
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ instance_id: instanceId||frameId||String(Date.now()), guild_id:guildId, channel_id:channelId })
       });
       var fbd = await fb.json();
-      if (!fbd.token) throw new Error('Fallback échoué: ' + (fbd.error || JSON.stringify(fbd)));
-      setProgress(90, 'BONJOUR ' + (fbd.discord_name || fbd.username || '').toUpperCase());
+      if (!fbd.token) throw new Error('Fallback: '+(fbd.error||JSON.stringify(fbd)));
+      prog(90, 'BIENVENUE');
       return await launch(fbd);
     }
 
     if (!code) throw new Error('Code OAuth manquant');
-    setProgress(75, 'COMPTE ARCH...');
+    prog(75, 'COMPTE ARCH...');
 
     var lr = await fetch('/api/discord/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ code:code })
     });
     var ld = await lr.json();
-    if (!ld.token) throw new Error('Login échoué: ' + (ld.error || JSON.stringify(ld)));
-    setProgress(90, 'BONJOUR ' + (ld.discord_name || ld.username || '').toUpperCase());
+    if (!ld.token) throw new Error('Login: '+(ld.error||JSON.stringify(ld)));
+    prog(90, 'BIENVENUE ' + (ld.discord_name||ld.username||'').toUpperCase());
     await launch(ld);
 
-  } catch (err) {
-    console.error('[ARCH]', err);
-    showError(err.message || String(err));
+  } catch(e) {
+    console.error('[ARCH]', e);
+    fail(e.message || String(e));
   }
 }
 
