@@ -121,9 +121,15 @@ async function finalize(arch) {
 
   setProgress(100, 'LANCEMENT...');
   await new Promise(r => setTimeout(r, 300));
-  // Discord préfixe tout avec /activity/ — on adapte le chemin
+  // Passe le token dans l'URL — sessionStorage ne survit pas à la navigation
   const base = window.location.pathname.startsWith('/activity') ? '/activity' : '';
-  window.location.href = base + '/hub.html';
+  const params = new URLSearchParams({
+    discord_token: arch.token,
+    discord_user:  arch.username,
+    discord_name:  arch.discord_name  || arch.username,
+    discord_bal:   arch.balance,
+  });
+  window.location.href = base + '/hub.html?' + params.toString();
   document.getElementById('boot').style.display = 'none';
 }
 
