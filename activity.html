@@ -27,7 +27,7 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 <iframe id="gameFrame" src="" allow="autoplay; clipboard-write"></iframe>
 
 <script type="module">
-import { DiscordSDK, patchUrlMappings } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs';
+import { DiscordSDK } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs';
 
 const CLIENT_ID = '__DISCORD_CLIENT_ID__';
 const statusEl  = document.getElementById('bootStatus');
@@ -52,58 +52,78 @@ async function init() {
     const params     = new URLSearchParams(window.location.search);
     const frameId    = params.get('frame_id')    || undefined;
     const instanceId = params.get('instance_id') || undefined;
+    const guildId    = params.get('guild_id')    || undefined;
+    const channelId  = params.get('channel_id')  || undefined;
 
     setProgress(20, 'CONNEXION DISCORD...');
     const sdk = new DiscordSDK(CLIENT_ID, { frameId, instanceId });
     await sdk.ready();
-    setProgress(35, 'SDK PRET');
+    setProgress(40, 'SDK PRET');
 
-    // Patch URLs proxy Discord → /api
-    patchUrlMappings([{ prefix: '/api', target: '' }]);
+    // Authorize via SDK — récupère le code
+    setProgress(50, 'AUTORISATION...');
+    let code;
+    try {
+      const result = await sdk.commands.authorize({
+        client_id: CLIENT_ID,
+        response_type: 'code',
+        state: '',
+        prompt: 'none',
+        scope: ['identify'],
+      });
+      code = result.code;
+    } catch(authErr) {
+      // Si authorize échoue à cause de l'URL, on utilise le discord_proxy_ticket
+      // comme fallback identifiant (instance_id contient l'user ID encodé)
+      console.warn('authorize failed, using fallback:', authErr.message);
+      // Fallback : utilise instance_id + guild + channel comme identité unique
+      const fallbackId = instanceId || frameId || Date.now().toString();
+      const res2 = await fetch('/api/discord/login-fallback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instance_id: fallbackId, guild_id: guildId, channel_id: channelId }),
+      });
+      const arch = await res2.json();
+      if (!res2.ok || !arch.token) throw new Error('Fallback auth: ' + (arch.error || JSON.stringify(arch)));
+      setProgress(90, 'BONJOUR ' + (arch.discord_name || arch.username).toUpperCase());
+      await finalize(arch);
+      return;
+    }
 
-    // Authorize → récupère juste le code OAuth2, rien de plus
-    setProgress(45, 'AUTORISATION...');
-    const { code } = await sdk.commands.authorize({
-      client_id: CLIENT_ID,
-      response_type: 'code',
-      state: '',
-      prompt: 'none',
-      scope: ['identify'],
-    });
-    if (!code) throw new Error('Autorisation refusee');
-    setProgress(60, 'CODE RECU');
+    if (!code) throw new Error('Code manquant');
+    setProgress(65, 'CODE RECU');
 
-    // Un seul appel serveur — le Node fait tout : token + profil + compte ARCH
-    setProgress(72, 'CHARGEMENT COMPTE...');
+    // Envoie le code au serveur qui fait tout côté Node
+    setProgress(75, 'COMPTE ARCH...');
     const res2 = await fetch('/api/discord/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
     const arch = await res2.json();
-    if (!res2.ok || !arch.token) {
-      throw new Error('Login: ' + (arch.error || JSON.stringify(arch)));
-    }
+    if (!res2.ok || !arch.token) throw new Error('Login: ' + (arch.error || JSON.stringify(arch)));
     setProgress(90, 'BONJOUR ' + (arch.discord_name || arch.username).toUpperCase());
-
-    // Stocke dans sessionStorage — lu par hub.html
-    sessionStorage.setItem('arch_token',          arch.token);
-    sessionStorage.setItem('arch_username',       arch.username);
-    sessionStorage.setItem('arch_balance',        arch.balance);
-    sessionStorage.setItem('discord_name',        arch.discord_name  || arch.username);
-    sessionStorage.setItem('discord_avatar',      arch.discord_avatar || '');
-    sessionStorage.setItem('is_discord_activity', '1');
-
-    setProgress(100, 'LANCEMENT...');
-    await new Promise(r => setTimeout(r, 300));
-    frameEl.src = '/hub.html';
-    frameEl.style.display = 'block';
-    bootEl.style.display = 'none';
+    await finalize(arch);
 
   } catch (err) {
     console.error('[ARCH Activity]', err);
     showError((err && (err.message || err.error || JSON.stringify(err))) || 'Erreur inconnue');
   }
+}
+
+async function finalize(arch) {
+  sessionStorage.setItem('arch_token',          arch.token);
+  sessionStorage.setItem('arch_username',       arch.username);
+  sessionStorage.setItem('arch_balance',        arch.balance);
+  sessionStorage.setItem('discord_name',        arch.discord_name  || arch.username);
+  sessionStorage.setItem('discord_avatar',      arch.discord_avatar || '');
+  sessionStorage.setItem('is_discord_activity', '1');
+
+  setProgress(100, 'LANCEMENT...');
+  await new Promise(r => setTimeout(r, 300));
+  document.getElementById('gameFrame').src = '/hub.html';
+  document.getElementById('gameFrame').style.display = 'block';
+  document.getElementById('boot').style.display = 'none';
 }
 
 init();

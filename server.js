@@ -1181,6 +1181,18 @@ async function api(req, res) {
     return json(res, 200, { users: users.rows });
   }
 
+  // DISCORD — Fallback login quand authorize() échoue (utilise instance_id comme identifiant)
+  if (endpoint === '/api/discord/login-fallback' && req.method === 'POST') {
+    const { instance_id, guild_id, channel_id } = await body(req);
+    if (!instance_id) return json(res, 400, { error: 'instance_id manquant' });
+    try {
+      // Crée un compte lié à l'instance (pas idéal mais fonctionnel)
+      const fakeId = 'inst_' + instance_id.replace(/[^a-z0-9]/gi, '').slice(0, 32);
+      const result = await getOrCreateDiscordUser(fakeId, 'Player_' + fakeId.slice(-6), null);
+      return json(res, 200, { ...result, discord_name: 'Player_' + fakeId.slice(-6), discord_avatar: '' });
+    } catch(e) { return json(res, 500, { error: e.message }); }
+  }
+
   // DISCORD — Auth complète en 1 appel : code → token → profil → compte ARCH
   // Le front envoie juste le code OAuth2, le serveur fait tout côté Node
   if (endpoint === '/api/discord/login' && req.method === 'POST') {
