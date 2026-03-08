@@ -956,18 +956,31 @@ let username = localStorage.getItem('hub_user')  || '';
 
 // ── Discord Activity : auto-login si token injecté par activity.html ──
 (function discordActivityBoot() {
+  // Priorité 1 : URL params (plus fiable que sessionStorage cross-origin)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken  = urlParams.get('discord_token');
+  if (urlToken) {
+    token    = urlToken;
+    username = urlParams.get('discord_user') || username;
+    const dName = urlParams.get('discord_name');
+    if (dName) username = dName;
+    localStorage.setItem('hub_token', token);
+    localStorage.setItem('hub_user',  username);
+    // Nettoie l'URL sans recharger
+    window.history.replaceState({}, '', window.location.pathname);
+    return;
+  }
+  // Priorité 2 : sessionStorage (même origine)
   const discordToken = sessionStorage.getItem('arch_token');
   if (!discordToken) return;
   token    = discordToken;
-  username = sessionStorage.getItem('arch_username') || '';
-  localStorage.setItem('hub_token', token);
-  localStorage.setItem('hub_user',  username);
-  // Affiche le nom Discord dans la topbar si dispo
+  username = sessionStorage.getItem('arch_username') || username;
   const dName = sessionStorage.getItem('discord_name');
   if (dName) username = dName;
-  sessionStorage.removeItem('arch_token'); // consomme le token, 1 seule fois
+  localStorage.setItem('hub_token', token);
+  localStorage.setItem('hub_user',  username);
+  sessionStorage.removeItem('arch_token');
 })();
-let username = localStorage.getItem('hub_user')  || '';
 let balance  = 0, totalWins = 0, totalLosses = 0;
 let playerLevel = 1, playerXp = 0, playerXpForNext = 100, playerPerks = {};
 
