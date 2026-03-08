@@ -1252,7 +1252,6 @@ async function api(req, res) {
 //  SERVEUR HTTP
 // ============================================================
 const server = http.createServer(async (req, res) => {
-  console.log(`[REQ] ${req.method} ${req.url} | origin:${req.headers.origin||"-"}`);
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin':  '*',
@@ -1262,27 +1261,22 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  if (req.url.startsWith('/api/') || req.url.startsWith('/discord/') || req.url.startsWith('/game/') || req.url.startsWith('/me') || req.url.startsWith('/auth')) return api(req, res);
+  // Discord proxifie via /.proxy — strip ce préfixe
+  const rawUrl   = req.url;
+  const cleanUrl = rawUrl.startsWith('/.proxy') ? rawUrl.slice('/.proxy'.length) : rawUrl;
+  const urlPath  = cleanUrl.split('?')[0].split('#')[0];
 
-  // Parse le pathname proprement (ignore les query params Discord)
-  const urlPath = req.url.split('?')[0].split('#')[0];
+  if (cleanUrl.startsWith('/api/')) { req.url = cleanUrl; return api(req, res); }
+  if (urlPath.startsWith('/discord/') || urlPath.startsWith('/game/') || urlPath.startsWith('/me') || urlPath.startsWith('/auth')) { req.url = cleanUrl; return api(req, res); }
 
-  // Discord préfixe tout avec /activity/ — on strip ce préfixe
-  const cleanPath = urlPath.startsWith('/activity/') ? urlPath.slice('/activity'.length) : urlPath;
-
-  // Activity Discord — sert activity.html avec CLIENT_ID injecté
-  if (cleanPath === '/' || cleanPath === '/activity' || cleanPath === '/activity/') {
-    fs.readFile('./activity.html', 'utf8', (err, data) => {
-      if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
-      const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(injected);
-    });
-    return;
+  // /activity → sert index.html (page principale du site)
+  if (urlPath === '/activity' || urlPath === '/activity/') {
+    res.writeHead(302, { Location: '/index.html' });
+    return res.end();
   }
 
-  let filePath = '.' + cleanPath;
-  if (filePath === './') filePath = './index.html';
+  let filePath = '.' + urlPath;
+  if (filePath === './' || filePath === '.') filePath = './index.html';
   const ext  = path.extname(filePath);
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[ext] || 'text/plain';
   fs.readFile(filePath, (err, data) => {
