@@ -1265,6 +1265,7 @@ const server = http.createServer(async (req, res) => {
 
   // Parse le pathname proprement (ignore les query params Discord)
   const urlPath = req.url.split('?')[0].split('#')[0];
+  console.log(`[STATIC] ${req.method} ${req.url} → urlPath: ${urlPath}`);
 
   // Activity Discord — sert activity.html avec CLIENT_ID injecté
   if (urlPath === '/activity' || urlPath === '/activity/') {
