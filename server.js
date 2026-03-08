@@ -1335,3 +1335,56 @@ initDB()
     process.exit(1);
   });
 
+// ============================================================
+//  STATIC FILES + SERVER START
+// ============================================================
+
+const server = http.createServer((req, res) => {
+
+  const url = new URL(req.url, "http://localhost");
+
+  // --- API ---
+  if (url.pathname.startsWith("/api/")) {
+    return api(req, res);
+  }
+
+  // --- fichiers statiques ---
+  let filePath = path.join(__dirname, url.pathname);
+
+  // page par défaut
+  if (url.pathname === "/" || url.pathname === "") {
+    filePath = path.join(__dirname, "index.html");
+  }
+
+  fs.readFile(filePath, (err, data) => {
+
+    if (err) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not Found");
+      return;
+    }
+
+    const ext = path.extname(filePath);
+
+    const mime = {
+      ".html": "text/html",
+      ".js": "application/javascript",
+      ".css": "text/css",
+      ".json": "application/json",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".svg": "image/svg+xml"
+    };
+
+    res.writeHead(200, {
+      "Content-Type": mime[ext] || "text/plain"
+    });
+
+    res.end(data);
+  });
+
+});
+
+server.listen(CONFIG.port, () => {
+  console.log("ARCH server running on port", CONFIG.port);
+});
