@@ -285,7 +285,9 @@ setInterval(async () => {
 // ============================================================
 async function api(req, res) {
   const url      = new URL(req.url, 'http://localhost');
-  const endpoint = url.pathname;
+  // Discord proxy strip le préfixe /api — on normalise
+  const rawPath  = url.pathname;
+  const endpoint = rawPath.startsWith('/api') ? rawPath : '/api' + rawPath;
   const tk       = (req.headers['authorization'] || '').replace('Bearer ', '');
 
   // REGISTER
@@ -1259,7 +1261,7 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  if (req.url.startsWith('/api/')) return api(req, res);
+  if (req.url.startsWith('/api/') || req.url.startsWith('/discord/') || req.url.startsWith('/game/') || req.url.startsWith('/me') || req.url.startsWith('/auth')) return api(req, res);
 
   // Parse le pathname proprement (ignore les query params Discord)
   const urlPath = req.url.split('?')[0].split('#')[0];
