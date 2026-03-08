@@ -1219,7 +1219,12 @@ const server = http.createServer(async (req, res) => {
   if (req.url.startsWith('/api/')) return api(req, res);
 
   // Activity Discord — sert activity.html avec CLIENT_ID injecté
-  if (req.url === '/activity' || req.url === '/activity/') {
+  // Discord appelle / ou /activity — on détecte via header ou URL
+  const isActivity = req.url === '/activity' || req.url === '/activity/'
+    || req.headers['x-discord-proxy'] !== undefined
+    || (req.url === '/' && req.headers['referer'] && req.headers['referer'].includes('discord'));
+
+  if (isActivity) {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
       if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
