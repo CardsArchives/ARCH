@@ -1217,37 +1217,64 @@ async function api(req, res) {
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin':  '*',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     });
     return res.end();
   }
 
-  if (req.url.startsWith('/api/')) return api(req, res);
+  const urlObj = new URL(req.url, 'http://localhost');
+  const pathname = urlObj.pathname;
 
-  // Activity Discord — sert activity.html avec CLIENT_ID injecté
-  // Discord appelle / ou /activity — on détecte via header ou URL
-  const isActivity = req.url === '/activity' || req.url === '/activity/'
-    || req.headers['x-discord-proxy'] !== undefined
-    || (req.url === '/' && req.headers['referer'] && req.headers['referer'].includes('discord'));
+  if (pathname.startsWith('/api/')) {
+    return api(req, res);
+  }
+
+  // Toujours servir l'Activity sur /, /activity, /activity/ et /activity.html
+  const isActivity =
+    pathname === '/' ||
+    pathname === '/activity' ||
+    pathname === '/activity/' ||
+    pathname === '/activity.html';
 
   if (isActivity) {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
-      if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
+      if (err) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        return res.end('activity.html introuvable');
+      }
+
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
+
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(injected);
     });
     return;
   }
 
-  let filePath = '.' + req.url;
-  if (filePath === './') filePath = './index.html';
-  const ext  = path.extname(filePath);
-  const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[ext] || 'text/plain';
+  let filePath = '.' + pathname;
+  const ext = path.extname(filePath);
+
+  const mime = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon'
+  }[ext] || 'text/plain';
+
   fs.readFile(filePath, (err, data) => {
-    if (err) { res.writeHead(404); return res.end('Not found'); }
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('Not found');
+    }
+
     res.writeHead(200, { 'Content-Type': mime });
     res.end(data);
   });
