@@ -10,33 +10,36 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 #boot { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 18px; }
 .boot-logo { font-size: clamp(2rem, 10vw, 3.5rem); font-weight: 900; letter-spacing: 14px; text-shadow: 0 0 10px #00ff41, 0 0 30px #00ff41; animation: pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
-.boot-status { font-size: 0.62rem; letter-spacing: 4px; color: #008f11; min-height: 1.2em; text-align: center; word-break: break-all; max-width: 90vw; }
+.boot-status { font-size: 0.62rem; letter-spacing: 4px; color: #008f11; min-height: 1.2em; text-align: center; }
 .boot-bar-wrap { width: min(260px, 80vw); height: 2px; background: #003b00; }
-.boot-bar { height: 100%; background: #00ff41; width: 0%; transition: width 0.4s ease; }
-.boot-err { font-size: 0.55rem; color: #ff003c; letter-spacing: 1px; text-align: center; display: none; max-width: 94vw; line-height: 1.8; padding: 0 10px; word-break: break-all; }
-.boot-info { font-size: 0.48rem; color: #003b00; text-align: center; max-width: 94vw; word-break: break-all; padding: 0 10px; }
+.boot-bar { height: 100%; background: #00ff41; width: 0%; transition: width 0.4s ease; box-shadow: 0 0 8px #00ff41; }
+.boot-err { font-size: 0.58rem; color: #ff003c; letter-spacing: 1px; text-align: center; display: none; max-width: 94vw; line-height: 1.8; padding: 0 16px; word-break: break-word; }
+#gameFrame { width: 100%; height: 100%; border: none; display: none; }
 </style>
 </head>
 <body>
 <div id="boot">
   <div class="boot-logo">ARCH</div>
   <div class="boot-bar-wrap"><div class="boot-bar" id="bootBar"></div></div>
-  <div class="boot-status" id="bootStatus">LECTURE URL...</div>
-  <div class="boot-info" id="bootInfo"></div>
+  <div class="boot-status" id="bootStatus">INITIALISATION...</div>
   <div class="boot-err" id="bootErr"></div>
 </div>
+<iframe id="gameFrame" src="" allow="autoplay; clipboard-write"></iframe>
 
 <script type="module">
-const statusEl = document.getElementById('bootStatus');
-const barEl    = document.getElementById('bootBar');
-const errEl    = document.getElementById('bootErr');
-const infoEl   = document.getElementById('bootInfo');
+import { DiscordSDK, patchUrlMappings } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs';
 
-// Affiche TOUT ce qu'on reçoit pour diagnostiquer
-infoEl.textContent = 'href: ' + window.location.href
-  + ' | search: ' + window.location.search
-  + ' | hash: ' + window.location.hash;
+const CLIENT_ID = '__DISCORD_CLIENT_ID__';
+const statusEl  = document.getElementById('bootStatus');
+const barEl     = document.getElementById('bootBar');
+const errEl     = document.getElementById('bootErr');
+const bootEl    = document.getElementById('boot');
+const frameEl   = document.getElementById('gameFrame');
 
+function setProgress(pct, msg) {
+  barEl.style.width = pct + '%';
+  if (msg) statusEl.textContent = msg;
+}
 function showError(msg) {
   errEl.innerHTML = String(msg).replace(/\n/g, '<br>');
   errEl.style.display = 'block';
@@ -44,35 +47,88 @@ function showError(msg) {
   barEl.style.background = '#ff003c';
 }
 
-try {
-  statusEl.textContent = 'IMPORT SDK...';
-  const { DiscordSDK, patchUrlMappings } = await import('https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs');
-  statusEl.textContent = 'SDK CHARGE';
-  barEl.style.width = '30%';
+async function init() {
+  try {
+    // Extraire frame_id et instance_id depuis l'URL Discord
+    const params     = new URLSearchParams(window.location.search);
+    const frameId    = params.get('frame_id')    || undefined;
+    const instanceId = params.get('instance_id') || undefined;
 
-  // Log toutes les params
-  const raw = window.location.search || window.location.hash.replace(/^#\??/, '?');
-  const params = new URLSearchParams(raw.startsWith('?') ? raw.slice(1) : raw);
-  const frameId    = params.get('frame_id')    || undefined;
-  const instanceId = params.get('instance_id') || undefined;
+    setProgress(15, 'CONNEXION DISCORD...');
+    const sdk = new DiscordSDK(CLIENT_ID, { frameId, instanceId });
+    await sdk.ready();
+    setProgress(28, 'SDK PRET');
 
-  infoEl.textContent += ' | frame_id: ' + frameId + ' | instance_id: ' + instanceId;
+    // Patch /api → Railway via proxy Discord
+    patchUrlMappings([{ prefix: '/api', target: '' }]);
 
-  statusEl.textContent = 'NEW SDK...';
-  const sdk = new DiscordSDK('__DISCORD_CLIENT_ID__', { frameId, instanceId });
+    setProgress(35, 'AUTHENTIFICATION...');
+    const { code } = await sdk.commands.authorize({
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      state: '',
+      prompt: 'none',
+      scope: ['identify'],
+    });
+    if (!code) throw new Error('Autorisation Discord refusee');
+    setProgress(52, 'CODE RECU');
 
-  statusEl.textContent = 'READY...';
-  barEl.style.width = '50%';
-  await sdk.ready();
+    setProgress(58, 'ECHANGE TOKEN...');
+    const tokenRes  = await fetch('/api/discord/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData.access_token) {
+      throw new Error('Token: ' + (tokenData.error || tokenData.message || JSON.stringify(tokenData)));
+    }
+    setProgress(68, 'TOKEN OK');
 
-  statusEl.textContent = 'SDK OK !';
-  barEl.style.width = '70%';
-  barEl.style.background = '#00ff41';
+    setProgress(72, 'PROFIL DISCORD...');
+    await sdk.commands.authenticate({ access_token: tokenData.access_token });
+    const meRes = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: 'Bearer ' + tokenData.access_token },
+    });
+    const me = await meRes.json();
+    if (!me.id) throw new Error('Profil inaccessible: ' + JSON.stringify(me));
+    setProgress(82, 'BONJOUR ' + (me.global_name || me.username).toUpperCase());
 
-} catch(err) {
-  console.error(err);
-  showError(err?.message || JSON.stringify(err));
+    setProgress(88, 'COMPTE ARCH...');
+    const authRes = await fetch('/api/discord/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        discord_id: me.id,
+        username:   me.global_name || me.username,
+        avatar:     me.avatar,
+      }),
+    });
+    const arch = await authRes.json();
+    if (!authRes.ok || !arch.token) throw new Error('ARCH auth: ' + (arch.error || JSON.stringify(arch)));
+
+    // Stocke dans sessionStorage — lu par hub.html (même origine discordsays.com)
+    sessionStorage.setItem('arch_token',          arch.token);
+    sessionStorage.setItem('arch_username',       arch.username);
+    sessionStorage.setItem('arch_balance',        arch.balance);
+    sessionStorage.setItem('discord_name',        me.global_name || me.username);
+    sessionStorage.setItem('discord_avatar',      me.avatar
+      ? 'https://cdn.discordapp.com/avatars/' + me.id + '/' + me.avatar + '.png' : '');
+    sessionStorage.setItem('is_discord_activity', '1');
+
+    setProgress(100, 'LANCEMENT...');
+    await new Promise(r => setTimeout(r, 300));
+    frameEl.src = '/hub.html';
+    frameEl.style.display = 'block';
+    bootEl.style.display = 'none';
+
+  } catch (err) {
+    console.error('[ARCH Activity]', err);
+    showError((err && (err.message || err.error || JSON.stringify(err))) || 'Erreur inconnue');
+  }
 }
+
+init();
 </script>
 </body>
 </html>
