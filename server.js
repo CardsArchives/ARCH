@@ -1263,12 +1263,18 @@ const server = http.createServer(async (req, res) => {
 
   if (req.url.startsWith('/api/') || req.url.startsWith('/discord/') || req.url.startsWith('/game/') || req.url.startsWith('/me') || req.url.startsWith('/auth')) return api(req, res);
 
-  // Parse le pathname (ignore query params)
+  // Parse le pathname proprement (ignore les query params Discord)
   const urlPath = req.url.split('?')[0].split('#')[0];
+  const urlQuery = req.url.includes('?') ? req.url.split('?')[1] : '';
 
-  // Activity Discord — répond à /activity et /activity/
-  // Le mapping racine Discord pointe sur arch-production.up.railway.app/activity
-  if (urlPath === '/activity' || urlPath === '/activity/') {
+  // Détecte si la requête vient de Discord (iframe Activity)
+  // Discord passe toujours frame_id et instance_id en query params
+  const isDiscordActivity = urlQuery.includes('frame_id=') || urlQuery.includes('instance_id=');
+
+  // Sert activity.html si :
+  // - URL = /activity ou /activity/
+  // - OU requête vient de Discord (frame_id présent) sur /
+  if (urlPath === '/activity' || urlPath === '/activity/' || (isDiscordActivity && urlPath === '/')) {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
       if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
@@ -1278,7 +1284,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Hub et site normal — / → index.html
+  // Site normal
   let filePath = '.' + urlPath;
   if (filePath === './' || filePath === '.') filePath = './index.html';
   const ext  = path.extname(filePath);
