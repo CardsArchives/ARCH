@@ -121,8 +121,9 @@ async function finalize(arch) {
 
   setProgress(100, 'LANCEMENT...');
   await new Promise(r => setTimeout(r, 300));
-  // Redirige directement — pas d'iframe imbriquée
-  window.location.href = '/hub.html';
+  // Discord préfixe tout avec /activity/ — on adapte le chemin
+  const base = window.location.pathname.startsWith('/activity') ? '/activity' : '';
+  window.location.href = base + '/hub.html';
   document.getElementById('boot').style.display = 'none';
 }
 
