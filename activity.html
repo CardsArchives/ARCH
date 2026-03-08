@@ -52,9 +52,8 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 
 <iframe id="gameFrame" src="" allow="autoplay; clipboard-write"></iframe>
 
-<script type="module">
-// ── Discord Embedded App SDK (importé depuis CDN officiel) ──
-import { DiscordSDK, patchUrlMappings } from 'https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/index.mjs';
+<script src="https://unpkg.com/@discord/embedded-app-sdk@1.3.0/dist/index.umd.js"></script>
+<script>
 
 const CLIENT_ID = '__DISCORD_CLIENT_ID__';
 
