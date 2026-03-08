@@ -808,6 +808,12 @@ input:focus { border-color: var(--green); box-shadow: 0 0 8px var(--dim); }
 </div><!-- /layer -->
 
 <script>
+/* ═══ SCREEN SWITCHER ═══ */
+function showScreen(name) {
+  document.getElementById('screen-index').style.display = name === 'index' ? 'block' : 'none';
+  document.getElementById('screen-hub').style.display   = name === 'hub'   ? 'block' : 'none';
+}
+
 // ═══════════════════════════════════════════
 //  MATRIX RAIN
 // ═══════════════════════════════════════════
