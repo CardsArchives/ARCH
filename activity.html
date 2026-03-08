@@ -53,34 +53,16 @@ async function init() {
     const frameId    = params.get('frame_id')    || undefined;
     const instanceId = params.get('instance_id') || undefined;
 
-    // Fix "Invalid URL" — le SDK a besoin d'une origin valide
-    // discordsays.com utilise un sous-domaine = CLIENT_ID, on force l'origin
-    const expectedOrigin = 'https://' + CLIENT_ID + '.discordsays.com';
-    if (window.location.origin !== expectedOrigin) {
-      try {
-        // Patch location pour que le SDK construise les bonnes URLs
-        Object.defineProperty(window, 'location', {
-          value: new Proxy(window.location, {
-            get(target, prop) {
-              if (prop === 'origin') return expectedOrigin;
-              if (prop === 'href')   return expectedOrigin + window.location.search;
-              const val = target[prop];
-              return typeof val === 'function' ? val.bind(target) : val;
-            }
-          }),
-          configurable: true
-        });
-      } catch(e) { /* ignore si non patchable */ }
-    }
-
-    setProgress(15, 'CONNEXION DISCORD...');
+    setProgress(20, 'CONNEXION DISCORD...');
     const sdk = new DiscordSDK(CLIENT_ID, { frameId, instanceId });
     await sdk.ready();
-    setProgress(30, 'SDK PRET');
+    setProgress(35, 'SDK PRET');
 
+    // Patch URLs proxy Discord → /api
     patchUrlMappings([{ prefix: '/api', target: '' }]);
 
-    setProgress(38, 'AUTHENTIFICATION...');
+    // Authorize → récupère juste le code OAuth2, rien de plus
+    setProgress(45, 'AUTORISATION...');
     const { code } = await sdk.commands.authorize({
       client_id: CLIENT_ID,
       response_type: 'code',
@@ -88,49 +70,28 @@ async function init() {
       prompt: 'none',
       scope: ['identify'],
     });
-    if (!code) throw new Error('Autorisation Discord refusee');
-    setProgress(52, 'CODE RECU');
+    if (!code) throw new Error('Autorisation refusee');
+    setProgress(60, 'CODE RECU');
 
-    setProgress(58, 'ECHANGE TOKEN...');
-    const tokenRes  = await fetch('/api/discord/token', {
+    // Un seul appel serveur — le Node fait tout : token + profil + compte ARCH
+    setProgress(72, 'CHARGEMENT COMPTE...');
+    const res2 = await fetch('/api/discord/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
-    const tokenData = await tokenRes.json();
-    if (!tokenRes.ok || !tokenData.access_token) {
-      throw new Error('Token: ' + (tokenData.error || tokenData.message || JSON.stringify(tokenData)));
+    const arch = await res2.json();
+    if (!res2.ok || !arch.token) {
+      throw new Error('Login: ' + (arch.error || JSON.stringify(arch)));
     }
-    setProgress(68, 'TOKEN OK');
+    setProgress(90, 'BONJOUR ' + (arch.discord_name || arch.username).toUpperCase());
 
-    setProgress(72, 'PROFIL DISCORD...');
-    await sdk.commands.authenticate({ access_token: tokenData.access_token });
-    const meRes = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: 'Bearer ' + tokenData.access_token },
-    });
-    const me = await meRes.json();
-    if (!me.id) throw new Error('Profil inaccessible: ' + JSON.stringify(me));
-    setProgress(82, 'BONJOUR ' + (me.global_name || me.username).toUpperCase());
-
-    setProgress(88, 'COMPTE ARCH...');
-    const authRes = await fetch('/api/discord/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        discord_id: me.id,
-        username:   me.global_name || me.username,
-        avatar:     me.avatar,
-      }),
-    });
-    const arch = await authRes.json();
-    if (!authRes.ok || !arch.token) throw new Error('ARCH auth: ' + (arch.error || JSON.stringify(arch)));
-
+    // Stocke dans sessionStorage — lu par hub.html
     sessionStorage.setItem('arch_token',          arch.token);
     sessionStorage.setItem('arch_username',       arch.username);
     sessionStorage.setItem('arch_balance',        arch.balance);
-    sessionStorage.setItem('discord_name',        me.global_name || me.username);
-    sessionStorage.setItem('discord_avatar',      me.avatar
-      ? 'https://cdn.discordapp.com/avatars/' + me.id + '/' + me.avatar + '.png' : '');
+    sessionStorage.setItem('discord_name',        arch.discord_name  || arch.username);
+    sessionStorage.setItem('discord_avatar',      arch.discord_avatar || '');
     sessionStorage.setItem('is_discord_activity', '1');
 
     setProgress(100, 'LANCEMENT...');

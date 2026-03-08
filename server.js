@@ -1181,24 +1181,47 @@ async function api(req, res) {
     return json(res, 200, { users: users.rows });
   }
 
-  // DISCORD — Token exchange
+  // DISCORD — Auth complète en 1 appel : code → token → profil → compte ARCH
+  // Le front envoie juste le code OAuth2, le serveur fait tout côté Node
+  if (endpoint === '/api/discord/login' && req.method === 'POST') {
+    const { code } = await body(req);
+    if (!code) return json(res, 400, { error: 'code manquant' });
+    try {
+      // 1. Échange le code contre un access_token
+      const tokenData = await discordTokenExchange(code);
+      if (!tokenData.access_token) return json(res, 400, { error: 'token invalide: ' + JSON.stringify(tokenData) });
+
+      // 2. Récupère le profil Discord côté serveur (pas depuis le navigateur)
+      const me = await new Promise((resolve, reject) => {
+        const r = https.request(
+          { hostname: 'discord.com', path: '/api/users/@me', method: 'GET',
+            headers: { Authorization: 'Bearer ' + tokenData.access_token } },
+          res => { let d = ''; res.on('data', c => d += c); res.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } }); }
+        );
+        r.on('error', reject); r.end();
+      });
+      if (!me.id) return json(res, 400, { error: 'profil Discord invalide: ' + JSON.stringify(me) });
+
+      // 3. Crée / récupère le compte ARCH
+      const result = await getOrCreateDiscordUser(me.id, me.global_name || me.username, me.avatar);
+      return json(res, 200, {
+        ...result,
+        discord_name:   me.global_name || me.username,
+        discord_avatar: me.avatar ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png` : '',
+      });
+    } catch(e) { return json(res, 500, { error: e.message }); }
+  }
+
+  // DISCORD — Token exchange (legacy)
   if (endpoint === '/api/discord/token' && req.method === 'POST') {
     const { code } = await body(req);
     if (!code) return json(res, 400, { error: 'code manquant' });
-
     try {
       const result = await discordTokenExchange(code);
-      if (!result || !result.access_token) {
-        return json(res, 400, result || { error: 'Token Discord invalide' });
-      }
       return json(res, 200, { access_token: result.access_token });
-    } catch (e) {
-      console.error('[DISCORD TOKEN ERROR]', e);
-      return json(res, 500, { error: e.message || 'discord token exchange failed' });
-    }
+    } catch(e) { return json(res, 500, { error: e.message }); }
   }
-
-  // DISCORD — Auth (get or create ARCH account)
+  // DISCORD — Auth (legacy)
   if (endpoint === '/api/discord/auth' && req.method === 'POST') {
     const { discord_id, username: dName, avatar } = await body(req);
     if (!discord_id) return json(res, 400, { error: 'discord_id manquant' });
@@ -1217,64 +1240,37 @@ async function api(req, res) {
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin':  '*',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     });
     return res.end();
   }
 
-  const urlObj = new URL(req.url, 'http://localhost');
-  const pathname = urlObj.pathname;
+  if (req.url.startsWith('/api/')) return api(req, res);
 
-  if (pathname.startsWith('/api/')) {
-    return api(req, res);
-  }
-
-  // Toujours servir l'Activity sur /, /activity, /activity/ et /activity.html
-  const isActivity =
-    pathname === '/' ||
-    pathname === '/activity' ||
-    pathname === '/activity/' ||
-    pathname === '/activity.html';
+  // Activity Discord — sert activity.html avec CLIENT_ID injecté
+  // Discord appelle / ou /activity — on détecte via header ou URL
+  const isActivity = req.url === '/activity' || req.url === '/activity/'
+    || req.headers['x-discord-proxy'] !== undefined
+    || (req.url === '/' && req.headers['referer'] && req.headers['referer'].includes('discord'));
 
   if (isActivity) {
     fs.readFile('./activity.html', 'utf8', (err, data) => {
-      if (err) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        return res.end('activity.html introuvable');
-      }
-
+      if (err) { res.writeHead(404); return res.end('activity.html introuvable'); }
       const injected = data.replace('__DISCORD_CLIENT_ID__', CONFIG.discordClientId);
-
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(injected);
     });
     return;
   }
 
-  let filePath = '.' + pathname;
-  const ext = path.extname(filePath);
-
-  const mime = {
-    '.html': 'text/html',
-    '.js': 'text/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.svg': 'image/svg+xml',
-    '.webp': 'image/webp',
-    '.ico': 'image/x-icon'
-  }[ext] || 'text/plain';
-
+  let filePath = '.' + req.url;
+  if (filePath === './') filePath = './index.html';
+  const ext  = path.extname(filePath);
+  const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[ext] || 'text/plain';
   fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      return res.end('Not found');
-    }
-
+    if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': mime });
     res.end(data);
   });
