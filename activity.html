@@ -49,20 +49,38 @@ function showError(msg) {
 
 async function init() {
   try {
-    // Extraire frame_id et instance_id depuis l'URL Discord
     const params     = new URLSearchParams(window.location.search);
     const frameId    = params.get('frame_id')    || undefined;
     const instanceId = params.get('instance_id') || undefined;
 
+    // Fix "Invalid URL" — le SDK a besoin d'une origin valide
+    // discordsays.com utilise un sous-domaine = CLIENT_ID, on force l'origin
+    const expectedOrigin = 'https://' + CLIENT_ID + '.discordsays.com';
+    if (window.location.origin !== expectedOrigin) {
+      try {
+        // Patch location pour que le SDK construise les bonnes URLs
+        Object.defineProperty(window, 'location', {
+          value: new Proxy(window.location, {
+            get(target, prop) {
+              if (prop === 'origin') return expectedOrigin;
+              if (prop === 'href')   return expectedOrigin + window.location.search;
+              const val = target[prop];
+              return typeof val === 'function' ? val.bind(target) : val;
+            }
+          }),
+          configurable: true
+        });
+      } catch(e) { /* ignore si non patchable */ }
+    }
+
     setProgress(15, 'CONNEXION DISCORD...');
     const sdk = new DiscordSDK(CLIENT_ID, { frameId, instanceId });
     await sdk.ready();
-    setProgress(28, 'SDK PRET');
+    setProgress(30, 'SDK PRET');
 
-    // Patch /api → Railway via proxy Discord
     patchUrlMappings([{ prefix: '/api', target: '' }]);
 
-    setProgress(35, 'AUTHENTIFICATION...');
+    setProgress(38, 'AUTHENTIFICATION...');
     const { code } = await sdk.commands.authorize({
       client_id: CLIENT_ID,
       response_type: 'code',
@@ -107,7 +125,6 @@ async function init() {
     const arch = await authRes.json();
     if (!authRes.ok || !arch.token) throw new Error('ARCH auth: ' + (arch.error || JSON.stringify(arch)));
 
-    // Stocke dans sessionStorage — lu par hub.html (même origine discordsays.com)
     sessionStorage.setItem('arch_token',          arch.token);
     sessionStorage.setItem('arch_username',       arch.username);
     sessionStorage.setItem('arch_balance',        arch.balance);
