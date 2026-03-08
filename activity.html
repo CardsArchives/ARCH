@@ -4,78 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ARCH</title>
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
-html,body { width:100%; height:100%; background:#000; overflow:hidden; font-family:'Courier New',monospace; color:#00ff41; }
-#boot { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; gap:18px; }
-.logo { font-size:clamp(2rem,10vw,3.5rem); font-weight:900; letter-spacing:14px; text-shadow:0 0 10px #00ff41,0 0 30px #00ff41; animation:pulse 2s ease-in-out infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
-.status { font-size:0.62rem; letter-spacing:4px; color:#008f11; min-height:1.2em; text-align:center; }
-.bar-wrap { width:min(260px,80vw); height:2px; background:#003b00; }
-.bar { height:100%; background:#00ff41; width:0%; transition:width 0.4s ease; box-shadow:0 0 8px #00ff41; }
-.err { font-size:0.58rem; color:#ff003c; letter-spacing:1px; text-align:center; display:none; max-width:94vw; line-height:1.8; padding:0 16px; word-break:break-word; }
-</style>
 </head>
-<body>
-<div id="boot">
-  <div class="logo">ARCH</div>
-  <div class="bar-wrap"><div class="bar" id="bar"></div></div>
-  <div class="status" id="status">CONNEXION...</div>
-  <div class="err" id="err"></div>
-</div>
-<script>
-var bar    = document.getElementById('bar');
-var status = document.getElementById('status');
-var err    = document.getElementById('err');
-
-function prog(pct, msg) { bar.style.width=pct+'%'; if(msg) status.textContent=msg; }
-function fail(msg) { err.innerHTML=String(msg).replace(/\n/g,'<br>'); err.style.display='block'; status.textContent='ERREUR'; bar.style.background='#ff003c'; }
-
-async function launch(data) {
-  prog(100, 'LANCEMENT...');
-  var qs = new URLSearchParams({
-    discord_token: data.token,
-    discord_user:  data.username || '',
-    discord_name:  data.discord_name || data.username || '',
-    discord_bal:   String(data.balance || 0),
-  }).toString();
-  await new Promise(function(r){ setTimeout(r, 300); });
-  // Redirection directe vers /hub.html — pas de /.proxy, pas de /activity prefix
-  window.location.href = '/hub.html?' + qs;
-}
-
-async function init() {
-  try {
-    var params     = new URLSearchParams(window.location.search);
-    var instanceId = params.get('instance_id') || params.get('frame_id') || String(Date.now());
-    var guildId    = params.get('guild_id')    || '';
-    var channelId  = params.get('channel_id')  || '';
-
-    prog(40, 'CONNEXION AU SERVEUR...');
-
-    var fb = await fetch('/api/discord/login-fallback', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        instance_id: instanceId,
-        guild_id:    guildId,
-        channel_id:  channelId,
-      }),
-    });
-
-    var data = await fb.json();
-    if (!data.token) throw new Error(data.error || JSON.stringify(data));
-
-    prog(90, 'BIENVENUE !');
-    await launch(data);
-
-  } catch(e) {
-    console.error('[ARCH]', e);
-    fail(e.message || String(e));
-  }
-}
-
-window.addEventListener('load', init);
-</script>
+<body style="margin:0;padding:0;background:#000;width:100%;height:100%;overflow:hidden;">
+<iframe src="/hub.html" style="width:100%;height:100vh;border:none;" allow="autoplay; clipboard-write"></iframe>
 </body>
 </html>
