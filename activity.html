@@ -23,35 +23,37 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
   <div class="boot-status" id="bootStatus">INITIALISATION...</div>
   <div class="boot-err" id="bootErr"></div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.3.0/output/embedded-app-sdk.umd.js"></script>
+
+<script src="https://unpkg.com/@discord/embedded-app-sdk@1.4.1/dist/index.umd.js"></script>
+
 <script>
 var CLIENT_ID = '__DISCORD_CLIENT_ID__';
 var barEl = document.getElementById('bootBar');
 var statusEl = document.getElementById('bootStatus');
 var errEl = document.getElementById('bootErr');
 
-function setProgress(pct, msg) { barEl.style.width=pct+'%'; if(msg) statusEl.textContent=msg; }
-function showError(msg) { errEl.innerHTML=String(msg).replace(/\n/g,'<br>'); errEl.style.display='block'; statusEl.textContent='ERREUR'; barEl.style.background='#ff003c'; }
+function setProgress(pct, msg) { barEl.style.width = pct + '%'; if (msg) statusEl.textContent = msg; }
+function showError(msg) { errEl.innerHTML = String(msg).replace(/\n/g, '<br>'); errEl.style.display = 'block'; statusEl.textContent = 'ERREUR'; barEl.style.background = '#ff003c'; }
 
 async function launch(data) {
   setProgress(100, 'LANCEMENT...');
   var qs = new URLSearchParams({
     discord_token: data.token,
-    discord_user:  data.username || '',
-    discord_name:  data.discord_name || data.username || '',
-    discord_bal:   String(data.balance || 0),
+    discord_user: data.username || '',
+    discord_name: data.discord_name || data.username || '',
+    discord_bal: String(data.balance || 0),
   }).toString();
-  await new Promise(function(r){ setTimeout(r, 250); });
+  await new Promise(function(r) { setTimeout(r, 250); });
   window.location.href = '/hub.html?' + qs;
 }
 
 async function init() {
   try {
     var params = new URLSearchParams(window.location.search);
-    var frameId    = params.get('frame_id')    || undefined;
+    var frameId = params.get('frame_id') || undefined;
     var instanceId = params.get('instance_id') || undefined;
-    var guildId    = params.get('guild_id')    || undefined;
-    var channelId  = params.get('channel_id')  || undefined;
+    var guildId = params.get('guild_id') || undefined;
+    var channelId = params.get('channel_id') || undefined;
 
     var SDKClass = (window.EmbeddedAppSDK && window.EmbeddedAppSDK.DiscordSDK) || window.DiscordSDK || null;
     if (!SDKClass) throw new Error('SDK Discord non chargé — vérifier CDN');
@@ -64,12 +66,26 @@ async function init() {
     var code = null;
     try {
       setProgress(55, 'AUTORISATION...');
-      var r = await sdk.commands.authorize({ client_id: CLIENT_ID, response_type: 'code', state: '', prompt: 'none', scope: ['identify'] });
+      var r = await sdk.commands.authorize({
+        client_id: CLIENT_ID,
+        response_type: 'code',
+        state: '',
+        prompt: 'none',
+        scope: ['identify']
+      });
       code = r.code;
-    } catch(e) {
+    } catch (e) {
       console.warn('authorize failed:', e.message);
       setProgress(65, 'FALLBACK...');
-      var fb = await fetch('/api/discord/login-fallback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ instance_id: instanceId || frameId || String(Date.now()), guild_id: guildId, channel_id: channelId }) });
+      var fb = await fetch('/api/discord/login-fallback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instance_id: instanceId || frameId || String(Date.now()),
+          guild_id: guildId,
+          channel_id: channelId
+        })
+      });
       var fbd = await fb.json();
       if (!fbd.token) throw new Error('Fallback échoué: ' + (fbd.error || JSON.stringify(fbd)));
       setProgress(90, 'BONJOUR ' + (fbd.discord_name || fbd.username || '').toUpperCase());
@@ -79,13 +95,17 @@ async function init() {
     if (!code) throw new Error('Code OAuth manquant');
     setProgress(75, 'COMPTE ARCH...');
 
-    var lr = await fetch('/api/discord/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: code }) });
+    var lr = await fetch('/api/discord/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code })
+    });
     var ld = await lr.json();
     if (!ld.token) throw new Error('Login échoué: ' + (ld.error || JSON.stringify(ld)));
     setProgress(90, 'BONJOUR ' + (ld.discord_name || ld.username || '').toUpperCase());
     await launch(ld);
 
-  } catch(err) {
+  } catch (err) {
     console.error('[ARCH]', err);
     showError(err.message || String(err));
   }
