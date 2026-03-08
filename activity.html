@@ -39,7 +39,8 @@ async function launch(data) {
     discord_name:  data.discord_name || data.username || '',
     discord_bal:   String(data.balance || 0),
   }).toString();
-  await new Promise(function(r){ setTimeout(r,300); });
+  await new Promise(function(r){ setTimeout(r, 300); });
+  // Redirection directe vers /hub.html — pas de /.proxy, pas de /activity prefix
   window.location.href = '/hub.html?' + qs;
 }
 
@@ -52,7 +53,6 @@ async function init() {
 
     prog(40, 'CONNEXION AU SERVEUR...');
 
-    // Pas de SDK — login direct via instance_id Discord
     var fb = await fetch('/api/discord/login-fallback', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
